@@ -11,6 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
+
+	"main/handlers/storage"
+	"main/middleware"
+	"main/service/spaces"
+	"main/utils"
 )
 
 var emailCtxKey = "email"
@@ -19,36 +25,51 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: Error loading .env file: %v", err)
 	}
-	
-	// Get the secret from the environment
-	hmacSecret := os.Getenv("SUPABASE_JWT_SECRET")
 
-	// Prevent the server from starting if the secret is not set
-	if hmacSecret == "" {
-		log.Fatal("Please set the SUPABASE_JWT_SECRET environment variable")
-	}
+	logger := utils.Logger()
 
-	// Create a new router
-	router := gin.New()
+	logger.Info("Starting server")
+	defer func() { _ = logger.Sync() }()
 
-	// Enable CORS for all origins. This is not recommended for production usage.
-	// Use a whitelist of allowed origins instead.
 	corsConfig := cors.Config{
-		AllowOrigins: []string{"*"},
+		AllowOrigins: []string{os.Getenv("APP_URL")},
 		AllowHeaders: []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
 	}
 
-	router.Use(cors.New(corsConfig))
+	config, err := utils.LoadConfig()
+	if err != nil {
+		log.Fatal("Failed to load config", zap.Error(err))
+	}
 
-	// Ping test
-	router.GET("/ping", func(c *gin.Context) {
+	router := gin.New()
+	router.Use(cors.New(corsConfig))
+	router.Use(middleware.RequestLogger(logger))
+
+	api := router.Group("/api")
+
+	resumeBucket, err := spaces.GetResumeBucket(context.Background(), logger, config)
+	if err != nil {
+		log.Fatal("Failed to create resume bucket", zap.Error(err))
+	}
+
+	webpBucket, err := spaces.GetWebpBucket(context.Background(), logger, config)
+	if err != nil {
+		log.Fatal("Failed to create webp bucket", zap.Error(err))
+	}
+	
+	// TODO: Use webpBucket for webp operations when implemented
+	_ = webpBucket // Suppress unused variable warning
+
+	storageHandler := storage.NewStorageHandler(resumeBucket, logger)
+	storageHandler.RegisterRoutes(api)
+
+	api.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
 
-	// Protected route that requires authentication
-	router.POST("/secret", authMiddleware(hmacSecret), secretRouteHandler())
+	// TODO: Move this & all auth to a separate module.
+	api.POST("/secret", authMiddleware(config.Supabase.JWTSecret), secretRouteHandler())
 
-	// Run the server
 	if err := router.Run(":8080"); err != nil {
 		log.Fatal(err)
 	}
