@@ -43,13 +43,7 @@ func (h *StorageHandler) UploadResume(c *gin.Context) {
         return
     }
 
-	file, err := c.FormFile("file")
-
-	if err != nil {
-		h.log.Error("Failed to get file", zap.Error(err))
-        c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
-        return
-    }
+	file := req.File
 
 	if file.Size > MAX_RESUME_FILE_SIZE {
 		h.log.Error("File is too large", zap.Int64("size", file.Size))
@@ -59,7 +53,7 @@ func (h *StorageHandler) UploadResume(c *gin.Context) {
 
 	h.log.Debug("Uploading file", zap.String("file", file.Filename))
 	
-	err = h.ResumeBucket.UploadResumeAsset(c.Request.Context(), req.UserID, req.Version, req.ResumeName, file)
+	err := h.ResumeBucket.UploadResumeAsset(c.Request.Context(), req.UserID, req.Version, req.ResumeName, file)
 
 	if err != nil {
 		h.log.Error("Failed to upload resume asset", zap.Error(err))

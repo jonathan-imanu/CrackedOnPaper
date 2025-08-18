@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -32,7 +31,7 @@ func main() {
 	defer func() { _ = logger.Sync() }()
 
 	corsConfig := cors.Config{
-		AllowOrigins: []string{os.Getenv("APP_URL")},
+		AllowOrigins: []string{"http://localhost:3000"},
 		AllowHeaders: []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
 	}
 
