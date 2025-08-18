@@ -33,7 +33,7 @@ export const AuthButtons = ({ isMobile }: AuthButtonsProps) => {
     }
   };
 
-  // Loading state
+  // Loading state (show skeleton of authenticated state)
   if (status === "loading") {
     return (
       <div
@@ -42,13 +42,8 @@ export const AuthButtons = ({ isMobile }: AuthButtonsProps) => {
         }`}
       >
         <ThemeSwitcher />
-        <div
-          className={`flex items-center ${
-            isMobile ? "flex-col space-y-2" : "space-x-2"
-          }`}
-        >
-          <Skeleton className="h-10 w-20 rounded-md" />
-          <Skeleton className="h-10 w-24 rounded-md" />
+        <div className="flex items-center space-x-2">
+          <Skeleton className="h-10 w-10 rounded-full" />{" "}
         </div>
       </div>
     );
