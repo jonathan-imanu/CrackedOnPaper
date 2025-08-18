@@ -26,11 +26,11 @@ type ResumeBucket struct {
 
 // IMPORTANT: Methods in this bucket take into account the format of the objects in the bucket.
 type ResumeBucketOps interface {
-	ListResumeVersionObjects(ctx context.Context, userID, resumeID, ver string) ([]types.Object, error)
+	ListResumeVersionObjects(ctx context.Context, userID, resumeID string) ([]types.Object, error)
 	ListResumeObjects(ctx context.Context, userID, resumeID string) ([]types.Object, error)
-	DeleteResumeVersion(ctx context.Context, userID, resumeID, ver string) error
+	DeleteResumeVersion(ctx context.Context, userID, resumeID string) error
 	DeleteResume(ctx context.Context, userID, resumeID string) error
-	UploadResumeAsset(ctx context.Context, userID, ver, resumeName string, file *multipart.FileHeader) error
+	UploadResumeAsset(ctx context.Context, userID, resumeName string, file *multipart.FileHeader) error
 }
 
 // Singleton pattern to ensure only one instance of the resume bucket is created.
@@ -53,32 +53,30 @@ func GetResumeBucket(ctx context.Context, log *zap.Logger, config *utils.Config)
 	return resumeBucket, resumeErr
 }
 
-func (b *ResumeBucket) prefix(userID, resumeID, ver string) string {
+func (b *ResumeBucket) prefix(userID, resumeID string) string {
 	base := fmt.Sprintf("%s/resumes", userID)
 	if resumeID != "" {
 		base = fmt.Sprintf("%s/%s", base, resumeID)
 	}
-	if ver != "" {
-		base = fmt.Sprintf("%s/%s", base, ver)
-	}
+	
 	return base + "/"
 }
 
 // List all objects for a specific resume version.
-func (b *ResumeBucket) ListResumeVersionObjects(ctx context.Context, userID, resumeID, ver string) ([]types.Object, error) {
-	prefix := b.prefix(userID, resumeID, ver)
+func (b *ResumeBucket) ListResumeVersionObjects(ctx context.Context, userID, resumeID string) ([]types.Object, error) {
+	prefix := b.prefix(userID, resumeID)
 	return b.ListObjects(ctx, b.Name, prefix, "")
 }
 
 // List all objects for a whole resume (all versions).
 func (b *ResumeBucket) ListResumeObjects(ctx context.Context, userID, resumeID string) ([]types.Object, error) {
-	prefix := b.prefix(userID, resumeID, "")
+	prefix := b.prefix(userID, resumeID)
 	return b.ListObjects(ctx, b.Name, prefix, "")
 }
 
 // Delete a specific resume version (all objects under .../{ver}/).
-func (b *ResumeBucket) DeleteResumeVersion(ctx context.Context, userID, resumeID, ver string) error {
-	objs, err := b.ListResumeVersionObjects(ctx, userID, resumeID, ver)
+func (b *ResumeBucket) DeleteResumeVersion(ctx context.Context, userID, resumeID string) error {
+	objs, err := b.ListResumeVersionObjects(ctx, userID, resumeID)
 	if err != nil {
 		return err
 	}
@@ -95,8 +93,8 @@ func (b *ResumeBucket) DeleteResume(ctx context.Context, userID, resumeID string
 }
 
 // Upload a single file into a specific resume version under the given key name (relative to the version prefix).
-func (b *ResumeBucket) UploadResumeAsset(ctx context.Context, userID, ver, resumeName string, file *multipart.FileHeader) error {
-	fullKey := b.prefix(userID, resumeName, ver)
+func (b *ResumeBucket) UploadResumeAsset(ctx context.Context, userID, resumeName string, file *multipart.FileHeader) error {
+	fullKey := b.prefix(userID, resumeName)
 
 	ct := mimeTypeForFilename(file.Filename, "application/octet-stream")
 

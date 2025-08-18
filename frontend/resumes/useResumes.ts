@@ -36,12 +36,7 @@ export function useResumes() {
     try {
       setError(null);
 
-      const response = await resumeApi.uploadResume(
-        file,
-        resumeName,
-        version,
-        user.id
-      );
+      const response = await resumeApi.uploadResume(file, resumeName, user.id);
 
       // For now, we'll just return a success message
       // In the future, you might want to refresh the resumes list

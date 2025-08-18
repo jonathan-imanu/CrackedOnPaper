@@ -8,13 +8,11 @@ class ResumeApi {
   async uploadResume(
     file: File,
     resumeName: string,
-    version: string,
     userId: string
   ): Promise<UploadResumeResponse> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("resume_name", resumeName);
-    formData.append("version", version);
     console.log("userId", userId);
     formData.append("user_id", userId);
 
