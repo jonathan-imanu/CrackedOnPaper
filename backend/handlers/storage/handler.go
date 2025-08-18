@@ -17,24 +17,24 @@ type StorageHandler struct {
 	ResumeBucket *spaces.ResumeBucket
 	ImageService *image.ImageService
 	log *zap.Logger
+	authMiddleware gin.HandlerFunc
 }
 
-func NewStorageHandler(resumeBucket *spaces.ResumeBucket, log *zap.Logger) *StorageHandler {
+func NewStorageHandler(resumeBucket *spaces.ResumeBucket, log *zap.Logger, authMiddleware gin.HandlerFunc) *StorageHandler {
 	if resumeBucket == nil || log == nil {
 		panic("resumeBucket and log must be non-nil")
 	}
-	return &StorageHandler{ResumeBucket: resumeBucket, log: log}
+	return &StorageHandler{ResumeBucket: resumeBucket, log: log, authMiddleware: authMiddleware}
 }
 
 func (h *StorageHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	g := rg.Group("/storage")
-	g.POST("", h.UploadResume)
-	g.DELETE("", h.DeleteResume)
-	g.GET("", h.GetResumes)
+	g.POST("", h.authMiddleware, h.UploadResume)
+	g.DELETE("", h.authMiddleware, h.DeleteResume)
+	g.GET("", h.authMiddleware, h.GetResumes)
 }
 
 func (h *StorageHandler) UploadResume(c *gin.Context) {
-	// Validate the request
 	var req UploadResumeRequest
 
     if err := c.ShouldBind(&req); err != nil {
