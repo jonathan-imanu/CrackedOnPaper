@@ -10,8 +10,8 @@ import { FileTextIcon } from "@/components/animated-icons/file-text";
 import AuthButtons from "./auth-buttons";
 
 const navigationItems = [
-  { name: "Leaderboards", link: "/leaderboards", icon: UsersIcon },
-  { name: "H2H", link: "/h2h", icon: TrendingUpDownIcon },
+  { name: "Leaderboards", link: "/leaderboards", icon: TrendingUpDownIcon },
+  { name: "H2H", link: "/h2h", icon: UsersIcon },
   { name: "My Resumes", link: "/my-resumes", icon: FileTextIcon },
 ];
 

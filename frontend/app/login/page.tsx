@@ -28,7 +28,7 @@ export default function Login() {
       <Navbar />
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md shadow-xl border-0 bg-card/80 backdrop-blur-sm">
-          <CardHeader className="space-y-1 pb-8">
+          <CardHeader className="space-y-1 pb-3">
             <div className="flex justify-center mb-4">
               <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
                 <Mail className="w-6 h-6 text-primary-foreground" />
@@ -38,7 +38,7 @@ export default function Login() {
               Welcome back
             </CardTitle>
             <CardDescription className="text-center text-muted-foreground">
-              Sign in to your account to continue
+              Sign in to see how your resume stacks up against others.
             </CardDescription>
           </CardHeader>
 
