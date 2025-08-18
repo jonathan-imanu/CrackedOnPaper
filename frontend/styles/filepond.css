@@ -1,0 +1,57 @@
+/* Panel / tile visuals only (no height constraints) */
+.filepond--panel-root {
+  @apply bg-muted border border-border rounded-md;
+}
+.filepond--item-panel {
+  @apply bg-background border border-border rounded-md shadow-sm;
+  background: theme("colors.background") !important;
+}
+.filepond--file {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.filepond--file-wrapper {
+  @apply p-3;
+}
+
+/* Text & metadata */
+.filepond--file-info,
+.filepond--file-info-main,
+.filepond--file-info-sub {
+  @apply text-foreground;
+}
+.filepond--file-info-main {
+  @apply text-sm font-medium;
+}
+.filepond--file-info-sub {
+  @apply text-xs;
+}
+.filepond--file-info-main,
+.filepond--file-info-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Indicators */
+.filepond--progress-indicator,
+.filepond--load-indicator {
+  color: theme("colors.primary.DEFAULT");
+}
+
+/* Actions */
+.filepond--action-remove-item {
+  @apply bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-full w-6 h-6;
+}
+
+/* Misc */
+.filepond--drop-label {
+  @apply text-muted-foreground;
+}
+.filepond--label-action {
+  @apply text-primary hover:text-primary/80 underline;
+}
+.filepond--credits {
+  display: none !important;
+}

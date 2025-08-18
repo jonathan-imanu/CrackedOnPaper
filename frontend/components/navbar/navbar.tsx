@@ -1,37 +1,23 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { useState, useMemo } from "react";
-import { Menu, ArrowUpDown, Medal, X, FileText } from "lucide-react";
+import { useState, useRef } from "react";
+import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
+import { TrendingUpDownIcon } from "@/components/animated-icons/trending-up-down";
+import { UsersIcon } from "@/components/animated-icons/users";
+import { FileTextIcon } from "@/components/animated-icons/file-text";
 import AuthButtons from "./auth-buttons";
-import { useAuth } from "@/components/auth-provider";
 
 const navigationItems = [
-  { name: "Features", link: "/#features", status: "unauthenticated" },
-  { name: "How It Works", link: "/#how-it-works", status: "unauthenticated" },
-  { name: "Leaderboards", link: "/leaderboards", icon: Medal },
-  { name: "H2H", link: "/h2h", icon: ArrowUpDown },
-  {
-    name: "My Resumes",
-    link: "/my-resumes",
-    status: "authenticated",
-    icon: FileText,
-  },
+  { name: "Leaderboards", link: "/leaderboards", icon: TrendingUpDownIcon },
+  { name: "H2H", link: "/h2h", icon: UsersIcon },
+  { name: "My Resumes", link: "/my-resumes", icon: FileTextIcon },
 ];
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { status } = useAuth();
-
-  // Only re-render when status changes between authenticated/unauthenticated
-  // Ignore loading state to prevent unnecessary re-renders
-  const effectiveStatus = useMemo(() => {
-    if (status === "loading") {
-      return "unauthenticated"; // Default to unauthenticated during loading
-    }
-    return status;
-  }, [status]);
+  const iconRefs = useRef<any[]>([]);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 shadow-md bg-background">
@@ -44,20 +30,33 @@ export function Navbar() {
 
           {/* Center Section - Navigation */}
           <div className="hidden md:flex flex-1 justify-center space-x-8">
-            {navigationItems
-              .filter((item) => item.status === effectiveStatus || !item.status)
-              .map((item, index) => (
-                <Link
-                  key={index}
-                  href={item.link}
-                  className="text-muted-foreground hover:text-foreground transition-colors font-semibold text-base flex items-center gap-1"
-                >
-                  {item.icon && effectiveStatus === "authenticated" && (
-                    <item.icon className="w-4 h-4" />
-                  )}
-                  {item.name}
-                </Link>
-              ))}
+            {navigationItems.map((item, index) => (
+              <Link
+                key={index}
+                href={item.link}
+                className="group text-muted-foreground hover:text-foreground transition-colors font-semibold text-base flex items-center gap-2"
+                onMouseEnter={() => {
+                  if (iconRefs.current[index]) {
+                    iconRefs.current[index].startAnimation();
+                  }
+                }}
+                onMouseLeave={() => {
+                  if (iconRefs.current[index]) {
+                    iconRefs.current[index].stopAnimation();
+                  }
+                }}
+              >
+                {item.icon && (
+                  <item.icon
+                    size={16}
+                    ref={(el: any) => {
+                      iconRefs.current[index] = el;
+                    }}
+                  />
+                )}
+                {item.name}
+              </Link>
+            ))}
           </div>
 
           {/* Right Section - Actions */}
@@ -90,9 +89,27 @@ export function Navbar() {
                 <Link
                   key={index}
                   href={item.link}
-                  className="text-muted-foreground hover:text-foreground transition-colors font-semibold text-lg"
+                  className="group text-muted-foreground hover:text-foreground transition-colors font-semibold text-lg flex items-center gap-2"
                   onClick={() => setIsMobileMenuOpen(false)}
+                  onMouseEnter={() => {
+                    if (iconRefs.current[index]) {
+                      iconRefs.current[index].startAnimation();
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    if (iconRefs.current[index]) {
+                      iconRefs.current[index].stopAnimation();
+                    }
+                  }}
                 >
+                  {item.icon && (
+                    <item.icon
+                      size={18}
+                      ref={(el: any) => {
+                        iconRefs.current[index] = el;
+                      }}
+                    />
+                  )}
                   {item.name}
                 </Link>
               ))}
