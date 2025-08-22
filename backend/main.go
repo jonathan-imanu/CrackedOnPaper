@@ -14,6 +14,7 @@ import (
 
 	"main/handlers/storage"
 	"main/middleware"
+	"main/service/image"
 	"main/service/spaces"
 	"main/utils"
 )
@@ -40,6 +41,13 @@ func main() {
 		log.Fatal("Failed to load config", zap.Error(err))
 	}
 
+	logger.Info("Loaded configuration",
+		zap.String("resume_bucket", config.Resume.BucketName),
+		zap.String("webp_bucket", config.Webp.BucketName),
+		zap.String("endpoint", config.Bucket.BucketEndpoint),
+		zap.String("region", config.Bucket.BucketRegion),
+	)
+
 	router := gin.New()
 	router.Use(cors.New(corsConfig))
 	router.Use(middleware.RequestLogger(logger))
@@ -55,15 +63,27 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to create webp bucket", zap.Error(err))
 	}
+
+	imageService := image.NewImageService(logger, webpBucket)
 	
 	// TODO: Use webpBucket for webp operations when implemented
-	_ = webpBucket // Suppress unused variable warning
+	//_ = webpBucket // Suppress unused variable warning
 
-	storageHandler := storage.NewStorageHandler(resumeBucket, logger)
+	storageHandler := storage.NewStorageHandler(resumeBucket, imageService, logger)
 	storageHandler.RegisterRoutes(api)
 
 	api.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
+	})
+
+	api.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy",
+			"services": gin.H{
+				"resume_bucket": resumeBucket.Name,
+				"webp_bucket": webpBucket.Name,
+			},
+		})
 	})
 
 	// TODO: Move this & all auth to a separate module.
