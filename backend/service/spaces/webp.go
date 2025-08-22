@@ -1,6 +1,7 @@
 package spaces
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"main/utils"
@@ -114,6 +115,27 @@ func (b *WebpBucket) DeleteAllWebpsForResume(ctx context.Context, resumeID strin
 		return err
 	}
 	return b.deleteInChunks(ctx, objs)
+}
+
+func (b *WebpBucket) UploadBytes(ctx context.Context, resumeID, ver, hash, objectName string, data []byte, contentType string) error {
+	fullKey := b.prefix(resumeID, ver, hash) + objectName
+
+	_, err := b.Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(b.Name),
+		Key:         aws.String(fullKey),
+		Body:       bytes.NewReader(data),
+		ContentType: aws.String(contentType),
+		CacheControl: aws.String("public, max-age=31536000, immutable"),
+		ACL: 	  types.ObjectCannedACLPublicRead,
+	})
+	if err != nil {
+		b.log.Error("Failed to upload bytes to webp bucket", 
+			zap.String("key", fullKey),
+			zap.Error(err))
+		return fmt.Errorf("failed to upload bytes to webp bucket: %w", err)
+	}
+
+	return nil
 }
 
 var _ WebpBucketOps = (*WebpBucket)(nil)
