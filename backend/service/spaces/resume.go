@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"main/utils"
 	"mime/multipart"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -53,30 +51,30 @@ func GetResumeBucket(ctx context.Context, log *zap.Logger, config *utils.Config)
 	return resumeBucket, resumeErr
 }
 
-func (b *ResumeBucket) prefix(userID, resumeID string) string {
+func (b *ResumeBucket) Prefix(userID, resumeName string) string {
 	base := fmt.Sprintf("%s/resumes", userID)
-	if resumeID != "" {
-		base = fmt.Sprintf("%s/%s", base, resumeID)
+	if resumeName != "" {
+		base = fmt.Sprintf("%s/%s", base, resumeName)
 	}
 	
 	return base + "/"
 }
 
 // List all objects for a specific resume version.
-func (b *ResumeBucket) ListResumeVersionObjects(ctx context.Context, userID, resumeID string) ([]types.Object, error) {
-	prefix := b.prefix(userID, resumeID)
+func (b *ResumeBucket) ListResumeVersionObjects(ctx context.Context, userID, resumeName string) ([]types.Object, error) {
+	prefix := b.Prefix(userID, resumeName)
 	return b.ListObjects(ctx, b.Name, prefix, "")
 }
 
 // List all objects for a whole resume (all versions).
-func (b *ResumeBucket) ListResumeObjects(ctx context.Context, userID, resumeID string) ([]types.Object, error) {
-	prefix := b.prefix(userID, resumeID)
+func (b *ResumeBucket) ListResumeObjects(ctx context.Context, userID, resumeName string) ([]types.Object, error) {
+	prefix := b.Prefix(userID, resumeName)
 	return b.ListObjects(ctx, b.Name, prefix, "")
 }
 
 // Delete a specific resume version (all objects under .../{ver}/).
-func (b *ResumeBucket) DeleteResumeVersion(ctx context.Context, userID, resumeID string) error {
-	objs, err := b.ListResumeVersionObjects(ctx, userID, resumeID)
+func (b *ResumeBucket) DeleteResumeVersion(ctx context.Context, userID, resumeName string) error {
+	objs, err := b.ListResumeVersionObjects(ctx, userID, resumeName)
 	if err != nil {
 		return err
 	}
@@ -84,8 +82,8 @@ func (b *ResumeBucket) DeleteResumeVersion(ctx context.Context, userID, resumeID
 }
 
 // Delete an entire resume (all versions).
-func (b *ResumeBucket) DeleteResume(ctx context.Context, userID, resumeID string) error {
-	objs, err := b.ListResumeObjects(ctx, userID, resumeID)
+func (b *ResumeBucket) DeleteResume(ctx context.Context, userID, resumeName string) error {
+	objs, err := b.ListResumeObjects(ctx, userID, resumeName)
 	if err != nil {
 		return err
 	}
@@ -94,9 +92,9 @@ func (b *ResumeBucket) DeleteResume(ctx context.Context, userID, resumeID string
 
 // Upload a single file into a specific resume version under the given key name (relative to the version prefix).
 func (b *ResumeBucket) UploadResumeAsset(ctx context.Context, userID, resumeName string, file *multipart.FileHeader) error {
-	fullKey := b.prefix(userID, resumeName)
+	fullKey := b.Prefix(userID, resumeName)
 
-	ct := mimeTypeForFilename(file.Filename, "application/octet-stream")
+	ct := utils.MimeTypeForFilename(file.Filename, "application/pdf")
 
 	// Open the uploaded file
 	src, err := file.Open()
@@ -131,39 +129,16 @@ func (b *ResumeBucket) UploadResumeAsset(ctx context.Context, userID, resumeName
 	return nil
 }
 
+// ValidateResumeFile checks that resume file is not too large and has a valid number of pages
+func (b *ResumeBucket) ValidateResumeFile(file *multipart.FileHeader) (*utils.PDFMetadata, error) {
+	pdfMetadata, err := utils.ValidateResumeFile(file)
+	if err != nil {
+		b.log.Error("resume file validation failed", zap.Error(err))
+		return nil, err
+	}
+
+	return pdfMetadata, nil
+}
+
 // Interfaces are implicit in Go.
 var _ ResumeBucketOps = (*ResumeBucket)(nil)
-
-// ---------------- Helper functions ----------------
-
-func mimeTypeForFilename(name, fallback string) string {
-	// Minimal inference without importing extra deps.
-	ext := strings.ToLower(filepath.Ext(name))
-	switch ext {
-	case ".pdf":
-		return "application/pdf"
-	case ".doc":
-		return "application/msword"
-	case ".docx":
-		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-	case ".txt":
-		return "text/plain"
-	case ".md":
-		return "text/markdown"
-	case ".json":
-		return "application/json"
-	case ".html", ".htm":
-		return "text/html"
-	case ".png":
-		return "image/png"
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".webp":
-		return "image/webp"
-	default:
-		if fallback != "" {
-			return fallback
-		}
-		return "application/octet-stream"
-	}
-}

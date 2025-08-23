@@ -6,8 +6,14 @@ import (
 	"main/service/spaces"
 	"mime/multipart"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
+
+type ImageMetadata struct {
+	ImageReady bool
+	ImageKeyPrefix pgtype.Text
+}
 
 type ImageService struct {
 	log *zap.Logger
