@@ -1,0 +1,48 @@
+# Version control
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# IDE and OS files
+.DS_Store
+.vscode
+.idea
+
+# Environment files
+.env
+.env.local
+
+# Build artifacts
+main
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go build cache
+.cache/
+
+# Logs and temporary files
+*.log
+tmp/
+*.tmp
+*.swp
+*.swo
+
+# Node.js dependencies
+node_modules
+
+# Test files
+*_test.go
+testdata/
+
+# Development examples
+learning-examples/

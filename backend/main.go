@@ -18,6 +18,7 @@ import (
 	"main/handlers/storage"
 	"main/middleware"
 	"main/service/auth"
+	"main/service/image"
 	"main/service/resume"
 	"main/service/spaces"
 	"main/utils"
@@ -52,6 +53,13 @@ func main() {
 
     db := db.New(pool)
 
+	logger.Info("Loaded configuration",
+		zap.String("resume_bucket", config.Resume.BucketName),
+		zap.String("webp_bucket", config.Webp.BucketName),
+		zap.String("endpoint", config.Bucket.BucketEndpoint),
+		zap.String("region", config.Bucket.BucketRegion),
+	)
+
 	router := gin.New()
 	router.Use(cors.New(corsConfig))
 	router.Use(middleware.RequestLogger(logger))
@@ -67,14 +75,16 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to create webp bucket", zap.Error(err))
 	}
+
+	imageService := image.NewImageService(logger, webpBucket)
 	
 	// TODO: Use webpBucket for webp operations when implemented
-	_ = webpBucket // Suppress unused variable warning
+	//_ = webpBucket // Suppress unused variable warning
 
 	authService := auth.NewAuthService(config.Supabase.JWTSecret, logger)
 	resumeService := resume.NewResumeService(db)
 
-	storageHandler := storage.NewStorageHandler(resumeBucket, resumeService, authService, logger)
+	storageHandler := storage.NewStorageHandler(resumeBucket, resumeService, authService, imageService, logger)
 	storageHandler.RegisterRoutes(api)
 
 	resumeHandler := resume_handler.NewResumeHandler(db, logger, authService)
@@ -84,9 +94,8 @@ func main() {
 		c.String(http.StatusOK, "pong")
 	})
 
-	api.GET("/", func(c *gin.Context) {
-		c.String(http.StatusOK, "ok")
-	})
+	// TODO: Move this & all auth to a separate module.
+	api.POST("/secret", authMiddleware(config.Supabase.JWTSecret), secretRouteHandler())
 
 	if err := router.Run(":8080"); err != nil {
 		log.Fatal(err)

@@ -23,11 +23,11 @@ type StorageHandler struct {
 	log *zap.Logger
 }
 
-func NewStorageHandler(resumeBucket *spaces.ResumeBucket, resumeService *resume.ResumeService, authService *auth.AuthService, log *zap.Logger) *StorageHandler {
-	if resumeBucket == nil || resumeService == nil || authService == nil || log == nil {
+func NewStorageHandler(resumeBucket *spaces.ResumeBucket, resumeService *resume.ResumeService, authService *auth.AuthService, imageService *image.ImageService, log *zap.Logger) *StorageHandler {
+	if resumeBucket == nil || resumeService == nil || authService == nil || imageService == nil || log == nil {
 		panic("resumeBucket, resumeService, authService, and log must be non-nil")
 	}
-	return &StorageHandler{ResumeBucket: resumeBucket, ResumeService: resumeService, authService: authService, log: log}
+	return &StorageHandler{ResumeBucket: resumeBucket, ResumeService: resumeService, authService: authService, ImageService: imageService, log: log}
 }
 
 func (h *StorageHandler) RegisterRoutes(rg *gin.RouterGroup) {
@@ -72,6 +72,7 @@ func (h *StorageHandler) UploadResume(c *gin.Context) {
 
 	file := req.File
 
+	// Validate file size
 	h.log.Debug("Validating resume file", zap.String("file", file.Filename))
 
 	pdfMetadata, err := h.ResumeBucket.ValidateResumeFile(file)
@@ -79,9 +80,12 @@ func (h *StorageHandler) UploadResume(c *gin.Context) {
 
 	if err != nil {
 		h.log.Error("Invalid resume file", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
 		return
 	}
+
 
 	h.log.Debug("Uploading file", zap.String("file", file.Filename), zap.Int16("page_count", pdfMetadata.PageCount))
 	
@@ -93,6 +97,41 @@ func (h *StorageHandler) UploadResume(c *gin.Context) {
 		return
 	}
 
+	// TODO: Convert the PDF to a webp image of varying sizes.
+	webpResumeID, err := h.ImageService.ConvertPDFToWebp(c.Request.Context(), file)
+	if err != nil {
+		h.log.Error("Failed to convert PDF to WebP",
+			zap.String("user_id", req.UserID),
+			zap.String("resume_name", req.ResumeName),
+			zap.Error(err))
+		// Don't return error - PDF upload succeeded, WebP is optimization
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Resume uploaded successfully, but preview generation failed",
+			"pdf_uploaded": true,
+			"webp_generated": false,
+			"user_id": req.UserID,
+			"resume_name": req.ResumeName,
+		})
+		return
+	}
+
+	h.log.Info("Successfully processed resume", 
+		zap.String("user_id", req.UserID),
+		zap.String("resume_name", req.ResumeName),
+		zap.String("webp_resume_id", webpResumeID),
+)
+	// Return success response
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Resume uploaded and preview generated successfully",
+		"pdf_uploaded": true,
+		"webp_generated": true,
+		"user_id": req.UserID,
+		"resume_name": req.ResumeName,
+		"webp_resume_id": webpResumeID, // For future database storage
+	})
+}
+
+// TODO: Implement this
 	// TODO: Convert the PDF to a webp image of varying sizes
 
 	imageMetadata := &image.ImageMetadata{ImageReady: false, ImageKeyPrefix: pgtype.Text{String: "", Valid: true}}
