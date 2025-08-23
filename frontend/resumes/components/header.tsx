@@ -1,15 +1,27 @@
 import { UploadModal } from "@/resumes/components/upload/upload-modal";
-import { Button } from "@/components/ui/button";
-import { Upload } from "lucide-react";
+import { AnimatedButton, UploadIcon } from "@/components/animated-icons";
+import { useToast } from "@/components/ui/toast-context";
 import { Resume } from "@/resumes/types";
 
-export function ResumeHeader({
-  handleUploadSuccess,
-  handleUploadError,
-}: {
-  handleUploadSuccess: (resume: Resume) => void;
-  handleUploadError: (error: string) => void;
-}) {
+export function ResumeHeader() {
+  const { showToast } = useToast();
+
+  const handleUploadSuccess = (resume: Resume) => {
+    showToast({
+      type: "success",
+      title: "Resume uploaded successfully!",
+      message: `${resume.Name} has been added to your collection.`,
+    });
+  };
+
+  const handleUploadError = (error: string) => {
+    showToast({
+      type: "error",
+      title: "Upload failed",
+      message: error,
+    });
+  };
+
   return (
     <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
       <div>
@@ -22,10 +34,14 @@ export function ResumeHeader({
       </div>
       <UploadModal
         trigger={
-          <Button size="lg" className="mt-4 md:mt-0">
-            <Upload className="w-5 h-5 mr-2" />
+          <AnimatedButton
+            size="lg"
+            className="mt-4 md:mt-0"
+            icon={UploadIcon}
+            iconOnly
+          >
             Upload New Resume
-          </Button>
+          </AnimatedButton>
         }
         onSuccess={handleUploadSuccess}
         onError={handleUploadError}

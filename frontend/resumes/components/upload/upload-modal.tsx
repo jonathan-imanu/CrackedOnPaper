@@ -25,8 +25,30 @@ export function UploadModal({ trigger, onSuccess, onError }: UploadModalProps) {
   const handleUpload = async (file: File, name: string, version: string) => {
     setIsUploading(true);
     try {
-      const result = await uploadResume(file, name, version);
-      onSuccess?.(result);
+      await uploadResume(file, name, version);
+      // The upload was successful, but we don't have the resume object yet
+      // We'll call onSuccess with a placeholder and let the parent handle the refresh
+      const placeholderResume: Resume = {
+        ID: "temp",
+        Name: name,
+        OwnerUserID: "",
+        Industry: "",
+        YoeBucket: "",
+        CurrentEloInt: 0,
+        BattlesCount: 0,
+        LastMatchedAt: null,
+        InFlight: true,
+        CreatedAt: new Date().toISOString(),
+        PdfStorageKey: "",
+        PdfSizeBytes: file.size,
+        PdfMime: file.type,
+        ImageKeyPrefix: "",
+        PageCount: 0,
+        ImageReady: false,
+        Slot: 0,
+      };
+      onSuccess?.(placeholderResume);
+      setIsOpen(false);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Upload failed";
