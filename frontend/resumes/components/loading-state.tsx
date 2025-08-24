@@ -29,19 +29,6 @@ function LoadingSkeleton() {
             <CardContent className="space-y-4">
               {/* Resume Preview Skeleton */}
               <Skeleton className="aspect-[3/4] w-full rounded-lg" />
-
-              {/* Stats Skeleton */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-3 rounded-lg space-y-2">
-                  <Skeleton className="h-8 w-16 mx-auto" />
-                  <Skeleton className="h-4 w-20 mx-auto" />
-                </div>
-                <div className="text-center p-3 rounded-lg space-y-2">
-                  <Skeleton className="h-8 w-12 mx-auto" />
-                  <Skeleton className="h-4 w-16 mx-auto" />
-                </div>
-              </div>
-
               {/* Battle Stats Skeleton */}
               <div className="space-y-2">
                 {Array.from({ length: 4 }).map((_, j) => (

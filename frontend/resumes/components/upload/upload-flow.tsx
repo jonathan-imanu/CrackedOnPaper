@@ -281,13 +281,19 @@ export function UploadFlow({
 
       <div className="space-y-4">
         <div>
-          <Label htmlFor="fileName">Resume Name</Label>
+          <Label htmlFor="fileName">Resume Name (Alphanumeric Only)</Label>
           <Input
             id="fileName"
             value={fileName}
             onChange={(e) => setFileName(e.target.value)}
-            placeholder="e.g., Software Engineer Resume 2024"
+            placeholder="SoftwareEngineerResume2024"
             className="mt-1"
+            inputMode="text"
+            pattern="[a-zA-Z0-9]+"
+            maxLength={40}
+            title="Only alphanumeric characters are allowed"
+            autoComplete="off"
+            aria-invalid={!!fileName && !/^[a-zA-Z0-9]+$/.test(fileName)}
           />
         </div>
 
@@ -318,7 +324,7 @@ export function UploadFlow({
         </Button>
         <Button
           onClick={handleNext}
-          disabled={!fileName.trim()}
+          disabled={!fileName.trim() || !/^[a-zA-Z0-9]+$/.test(fileName)}
           className="flex-1"
         >
           Next

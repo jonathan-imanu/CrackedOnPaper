@@ -108,7 +108,11 @@ export function ResumeCard({
                   {statusInfo.text}
                 </Badge>
                 <Badge variant="outlineSpecial">{resume.Industry}</Badge>
-                <Badge variant="outlineSpecial">{resume.YoeBucket} Level</Badge>
+                <Badge variant="outlineSpecial">
+                  {resume.YoeBucket}
+                  {!resume.YoeBucket.toLowerCase().includes("level") &&
+                    " Level"}
+                </Badge>
               </div>
             </div>
             <div className="flex items-center gap-1">
