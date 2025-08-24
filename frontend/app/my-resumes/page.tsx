@@ -18,16 +18,43 @@ import { useAuth } from "@/components/auth-provider";
 
 export default function MyResumesPage() {
   const { status } = useAuth();
-  const { resumes, activities, loading, error } = useResumes();
+  const {
+    resumes,
+    activities,
+    loading,
+    error,
+    uploadResume,
+    deleteResume,
+    downloadResume,
+    renameResume,
+    viewResume,
+    viewFeedback,
+    viewPerformance,
+  } = useResumes();
 
   // Show loading state
   if (status === "loading" || loading) {
-    return <LoadingState />;
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 pt-24 pb-8">
+          <ResumeHeader resumes={resumes} onUpload={uploadResume} />
+          <LoadingState />
+        </div>
+      </div>
+    );
   }
 
   // Show not authenticated state
   if (status === "unauthenticated") {
-    return <NotAuthenticatedPage />;
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 pt-24 pb-8">
+          <NotAuthenticatedPage />
+        </div>
+      </div>
+    );
   }
 
   // Show error state
@@ -52,24 +79,35 @@ export default function MyResumesPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto px-4 pt-24 pb-8">
-        <ResumeHeader />
+        <ResumeHeader resumes={resumes} onUpload={uploadResume} />
 
         {/* Show empty state if no resumes */}
         {resumes.length === 0 ? (
-          <NoResumes />
+          <NoResumes onUpload={uploadResume} />
         ) : (
           <>
             {/* Resume Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
               {resumes.map((resume) => (
-                <ResumeCard key={resume.ID} resume={resume} />
+                <ResumeCard
+                  key={resume.ID}
+                  resume={resume}
+                  onDelete={deleteResume}
+                  onDownload={downloadResume}
+                  onRename={renameResume}
+                  onView={viewResume}
+                  onViewFeedback={viewFeedback}
+                  onViewPerformance={viewPerformance}
+                />
               ))}
             </div>
 
-            <Separator className="my-8" />
-
-            {/* Recent Activity */}
-            <RecentActivity activities={activities} />
+            {activities.length > 0 && (
+              <>
+                <Separator className="my-8" />
+                <RecentActivity activities={activities} />
+              </>
+            )}
           </>
         )}
       </div>
