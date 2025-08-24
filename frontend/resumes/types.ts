@@ -1,14 +1,19 @@
 export interface Resume {
-  id: number;
-  name: string;
-  industry: string;
-  level: string;
-  elo: number;
-  battles: number;
-  wins: number;
-  winRate: number;
-  lastBattle: string;
-  status: "active" | "paused" | "inactive";
-  feedback: number;
-  uploadDate: string;
+  ID: string;
+  Name: string;
+  OwnerUserID: string;
+  Industry: string;
+  YoeBucket: string;
+  CurrentEloInt: number;
+  BattlesCount: number;
+  LastMatchedAt: string | null;
+  InFlight: boolean;
+  CreatedAt: string;
+  PdfStorageKey: string;
+  PdfSizeBytes: number;
+  PdfMime: string;
+  ImageKeyPrefix: string;
+  PageCount: number;
+  ImageReady: boolean;
+  Slot: number;
 }

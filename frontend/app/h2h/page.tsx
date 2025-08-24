@@ -156,7 +156,7 @@ export default function H2HPage() {
             Vote for Resume A
           </Button>
           <Button variant="outline" size="lg" className="w-full sm:w-auto">
-            Can't Decide / Tie
+            Can&apos;t Decide / Tie
           </Button>
           <Button
             size="lg"

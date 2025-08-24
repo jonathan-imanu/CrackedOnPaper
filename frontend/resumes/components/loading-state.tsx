@@ -5,35 +5,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 function LoadingSkeleton() {
   return (
     <div className="space-y-8">
-      {/* Header Skeleton */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
-        <div className="space-y-2">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-6 w-96" />
-        </div>
-        <Skeleton className="h-12 w-48 mt-4 md:mt-0" />
-      </div>
-
-      {/* Stats Skeleton */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <Skeleton className="w-5 h-5 rounded" />
-                <div className="space-y-1">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-8 w-12" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
       {/* Resume Cards Skeleton */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 3 }).map((_, i) => (
           <Card key={i} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -58,11 +32,11 @@ function LoadingSkeleton() {
 
               {/* Stats Skeleton */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-3 bg-accent/60 rounded-lg space-y-2">
+                <div className="text-center p-3 rounded-lg space-y-2">
                   <Skeleton className="h-8 w-16 mx-auto" />
                   <Skeleton className="h-4 w-20 mx-auto" />
                 </div>
-                <div className="text-center p-3 bg-accent/60 rounded-lg space-y-2">
+                <div className="text-center p-3 rounded-lg space-y-2">
                   <Skeleton className="h-8 w-12 mx-auto" />
                   <Skeleton className="h-4 w-16 mx-auto" />
                 </div>
@@ -117,11 +91,8 @@ function LoadingSkeleton() {
 
 export function LoadingState() {
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <div className="container mx-auto px-4 pt-24 pb-8">
-        <LoadingSkeleton />
-      </div>
+    <div className="container mx-auto px-4 pt-8 pb-8">
+      <LoadingSkeleton />
     </div>
   );
 }

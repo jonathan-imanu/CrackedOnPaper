@@ -50,10 +50,7 @@ function NotAuthenticated() {
 export function NotAuthenticatedPage() {
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-      <div className="container mx-auto px-4 pt-24 pb-8">
-        <NotAuthenticated />
-      </div>
+      <NotAuthenticated />
     </div>
   );
 }

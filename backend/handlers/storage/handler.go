@@ -1,45 +1,51 @@
 package storage
 
-// CRUD endpoints for uploading resumes and webps.
+// A lone endpoint for uploading resumes.
 
 import (
+	"main/service/auth"
 	"main/service/image"
+	"main/service/resume"
 	"main/service/spaces"
+	"mime"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
 
-const MAX_RESUME_FILE_SIZE = 1024 * 1024 // 1MB
-
 type StorageHandler struct {
 	ResumeBucket *spaces.ResumeBucket
+	ResumeService *resume.ResumeService
 	ImageService *image.ImageService
+	authService *auth.AuthService
 	log *zap.Logger
 }
 
-func NewStorageHandler(resumeBucket *spaces.ResumeBucket, imageService *image.ImageService, log *zap.Logger) *StorageHandler {
-	if resumeBucket == nil || imageService == nil || log == nil {
-		panic("resumeBucket, imageService, and log must be non-nil")
+func NewStorageHandler(resumeBucket *spaces.ResumeBucket, resumeService *resume.ResumeService, authService *auth.AuthService, imageService *image.ImageService, log *zap.Logger) *StorageHandler {
+	if resumeBucket == nil || resumeService == nil || authService == nil || imageService == nil || log == nil {
+		panic("resumeBucket, resumeService, authService, and log must be non-nil")
 	}
-	return &StorageHandler{
-		ResumeBucket: resumeBucket, 
-		ImageService: imageService, 
-		log: log,
-	}
+	return &StorageHandler{ResumeBucket: resumeBucket, ResumeService: resumeService, authService: authService, ImageService: imageService, log: log}
 }
 
 func (h *StorageHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	g := rg.Group("/storage")
-	g.POST("", h.UploadResume)
-	g.DELETE("", h.DeleteResume)
-	g.GET("", h.GetResumes)
+	g.POST("", h.authService.AuthMiddleware(), h.UploadResume)
 }
 
 func (h *StorageHandler) UploadResume(c *gin.Context) {
-	// Validate the request
 	var req UploadResumeRequest
+
+	if ct := c.GetHeader("Content-Type"); ct != "" {
+		mediaType, _, err := mime.ParseMediaType(ct)
+		if err != nil || mediaType != "multipart/form-data" {
+			h.log.Error("invalid Content-Type", zap.String("content_type", ct))
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Content-Type must be multipart/form-data"})
+			return
+		}
+	}
 
     if err := c.ShouldBind(&req); err != nil {
 		h.log.Error("Failed to bind request", zap.Error(err))
@@ -47,84 +53,83 @@ func (h *StorageHandler) UploadResume(c *gin.Context) {
         return
     }
 
+	userID, ok1 := h.authService.GetUserID(c)
+	userIDString, ok2 := h.authService.GetUserIDString(c)
+	if !ok1 || !ok2 {
+		h.log.Error("Failed to get user ID")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user ID"})
+		return
+	}
+
+	// Verify that the user has a free slot to upload a resume.
+	_, err := h.ResumeService.FindFreeSlotForOwner(c.Request.Context(), userID)
+	if err != nil {
+		h.log.Error("Failed to find free slot", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	file := req.File
 
-	// Validate file size
-	if file.Size > MAX_RESUME_FILE_SIZE {
-		h.log.Error("File is too large", zap.Int64("size", file.Size))
+	// Validate file
+	h.log.Debug("Validating resume file", zap.String("file", file.Filename))
+
+	pdfMetadata, err := h.ResumeBucket.ValidateResumeFile(file)
+	pdfMetadata.StorageKey = pgtype.Text{String: h.ResumeBucket.Prefix(userIDString, req.ResumeName), Valid: true}
+
+	if err != nil {
+		h.log.Error("Invalid resume file", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "file is too large",
-			"max_size_mb": MAX_RESUME_FILE_SIZE / (1024 * 1024),
-			"actual_size_mb": float64(file.Size) / (1024 * 1024),
+			"error": err.Error(),
 		})
 		return
 	}
 
-	// Validate file type
-	if file.Header.Get("Content-Type") != "application/pdf" {
-		h.log.Error("Invalid file type", zap.String("content_type", file.Header.Get("Content-Type")))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "only PDF files are supported"})
-		return
-	}
 
-	h.log.Info("Processing resume upload", 
-		zap.String("user_id", req.UserID),
-		zap.String("resume_name", req.ResumeName),
-		zap.String("filename", file.Filename),
-		zap.Int64("size", file.Size),
-	)
+	h.log.Debug("Uploading file", zap.String("file", file.Filename), zap.Int16("page_count", pdfMetadata.PageCount))
+	
+	err = h.ResumeBucket.UploadResumeAsset(c.Request.Context(), userIDString, req.ResumeName, file)
 
-	// Upload PDF to resume bucket
-	err := h.ResumeBucket.UploadResumeAsset(c.Request.Context(), req.UserID, req.ResumeName, file)
 	if err != nil {
 		h.log.Error("Failed to upload resume asset", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	
+	imageMetadata := &image.ImageMetadata{ImageReady: false, ImageKeyPrefix: pgtype.Text{String: "", Valid: true}}
+	resume, err := h.ResumeService.CreateResume(c.Request.Context(), userIDString, req.ResumeName, req.Industry, req.YoeBucket, pdfMetadata, imageMetadata)
 
-	// TODO: Convert the PDF to a webp image of varying sizes.
-	webpResumeID, err := h.ImageService.ConvertPDFToWebp(c.Request.Context(), file)
 	if err != nil {
-		h.log.Error("Failed to convert PDF to WebP",
-			zap.String("user_id", req.UserID),
-			zap.String("resume_name", req.ResumeName),
-			zap.Error(err))
-		// Don't return error - PDF upload succeeded, WebP is optimization
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Resume uploaded successfully, but preview generation failed",
-			"pdf_uploaded": true,
-			"webp_generated": false,
-			"user_id": req.UserID,
-			"resume_name": req.ResumeName,
-		})
+		h.log.Error("Failed to create resume", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	webpResumeKey, err := h.ImageService.ConvertPDFToWebp(c.Request.Context(), userIDString, resume.ID.String(), file)
+	if err != nil {
+		h.log.Error("Failed to convert PDF to WebP",
+			zap.String("user_id", userIDString),
+			zap.String("resume_name", req.ResumeName),
+			zap.Error(err))
+	}
+
 	h.log.Info("Successfully processed resume", 
-		zap.String("user_id", req.UserID),
+		zap.String("user_id", userIDString),
 		zap.String("resume_name", req.ResumeName),
-		zap.String("webp_resume_id", webpResumeID),
-)
-	// Return success response
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Resume uploaded and preview generated successfully",
-		"pdf_uploaded": true,
-		"webp_generated": true,
-		"user_id": req.UserID,
-		"resume_name": req.ResumeName,
-		"webp_resume_id": webpResumeID, // For future database storage
-	})
+		zap.String("webp_resume_id", webpResumeKey),
+	)
+
+	imageMetadata.ImageReady = err == nil
+	imageMetadata.ImageKeyPrefix = pgtype.Text{String: webpResumeKey, Valid: true}
+
+	err = h.ResumeService.UpdateImageMetadataForResume(c.Request.Context(), userIDString, resume.ID.String(), imageMetadata)
+
+	if err != nil {
+		h.log.Error("Failed to create resume", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Resume uploaded successfully", "resume": resume, })
 }
-
-// TODO: Implement this
-func (h *StorageHandler) DeleteResume(c *gin.Context) {
-}
-
-// TODO: Implement this
-func (h *StorageHandler) GetResumes(c *gin.Context) {
-	
-}
-
-
-
 
