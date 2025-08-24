@@ -17,6 +17,7 @@ const navigationItems = [
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const iconRefs = useRef<any[]>([]);
 
   return (
@@ -49,6 +50,7 @@ export function Navbar() {
                 {item.icon && (
                   <item.icon
                     size={16}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     ref={(el: any) => {
                       iconRefs.current[index] = el;
                     }}
@@ -105,6 +107,7 @@ export function Navbar() {
                   {item.icon && (
                     <item.icon
                       size={18}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       ref={(el: any) => {
                         iconRefs.current[index] = el;
                       }}

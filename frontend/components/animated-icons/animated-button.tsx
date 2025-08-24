@@ -2,7 +2,7 @@ import { forwardRef } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAnimatedIcon, type AnimatedIconHandle } from "./use-animated-icon";
 import { cn } from "@/lib/utils";
-import { cva, type VariantProps } from "class-variance-authority";
+import { type VariantProps } from "class-variance-authority";
 
 interface AnimatedButtonProps
   extends React.ComponentProps<"button">,

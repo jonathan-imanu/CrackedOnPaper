@@ -20,7 +20,7 @@ if (!supabaseUrl || !publicAnonKey) {
 
 const supabase = createClient(supabaseUrl, publicAnonKey, {
   auth: {
-    persistSession: false,
+    persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
   },
