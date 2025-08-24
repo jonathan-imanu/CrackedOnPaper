@@ -67,8 +67,7 @@ returning *;
 -- name: UpdateResumeImageMeta :one
 update app.resumes
 set image_key_prefix = $3,
-    page_count = coalesce($4, page_count),
-    image_ready = coalesce($5, image_ready)
+    image_ready = coalesce($4, image_ready)
 where id = $1 and owner_user_id = $2
 returning *;
 

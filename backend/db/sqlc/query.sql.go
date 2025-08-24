@@ -326,8 +326,7 @@ func (q *Queries) UpdateResumeBuckets(ctx context.Context, arg UpdateResumeBucke
 const updateResumeImageMeta = `-- name: UpdateResumeImageMeta :one
 update app.resumes
 set image_key_prefix = $3,
-    page_count = coalesce($4, page_count),
-    image_ready = coalesce($5, image_ready)
+    image_ready = coalesce($4, image_ready)
 where id = $1 and owner_user_id = $2
 returning id, name, owner_user_id, industry, yoe_bucket, current_elo_int, battles_count, last_matched_at, in_flight, created_at, pdf_storage_key, pdf_size_bytes, pdf_mime, image_key_prefix, page_count, image_ready, slot
 `
@@ -336,7 +335,6 @@ type UpdateResumeImageMetaParams struct {
 	ID             pgtype.UUID
 	OwnerUserID    pgtype.UUID
 	ImageKeyPrefix pgtype.Text
-	PageCount      int16
 	ImageReady     bool
 }
 
@@ -345,7 +343,6 @@ func (q *Queries) UpdateResumeImageMeta(ctx context.Context, arg UpdateResumeIma
 		arg.ID,
 		arg.OwnerUserID,
 		arg.ImageKeyPrefix,
-		arg.PageCount,
 		arg.ImageReady,
 	)
 	var i AppResume
