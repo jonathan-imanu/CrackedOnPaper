@@ -1,27 +1,18 @@
 import { UploadModal } from "@/resumes/components/upload/upload-modal";
 import { AnimatedButton, UploadIcon } from "@/components/animated-icons";
-import { useToast } from "@/components/ui/toast-context";
 import { Resume } from "@/resumes/types";
 
-export function ResumeHeader() {
-  const { showToast } = useToast();
+interface ResumeHeaderProps {
+  resumes: Resume[];
+  onUpload: (
+    file: File,
+    name: string,
+    industry: string,
+    yoeBucket: string
+  ) => Promise<any>;
+}
 
-  const handleUploadSuccess = (resume: Resume) => {
-    showToast({
-      type: "success",
-      title: "Resume uploaded successfully!",
-      message: `${resume.Name} has been added to your collection.`,
-    });
-  };
-
-  const handleUploadError = (error: string) => {
-    showToast({
-      type: "error",
-      title: "Upload failed",
-      message: error,
-    });
-  };
-
+export function ResumeHeader({ resumes, onUpload }: ResumeHeaderProps) {
   return (
     <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
       <div>
@@ -33,6 +24,8 @@ export function ResumeHeader() {
         </p>
       </div>
       <UploadModal
+        resumes={resumes}
+        onUpload={onUpload}
         trigger={
           <AnimatedButton
             size="lg"
@@ -43,8 +36,6 @@ export function ResumeHeader() {
             Upload New Resume
           </AnimatedButton>
         }
-        onSuccess={handleUploadSuccess}
-        onError={handleUploadError}
       />
     </div>
   );

@@ -39,13 +39,16 @@ class ResumeApi {
   async uploadResume(
     file: File,
     resumeName: string,
-    userId: string
+    userId: string,
+    industry: string,
+    yoeBucket: string
   ): Promise<UploadResumeResponse> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("resume_name", resumeName);
-    console.log("userId", userId);
     formData.append("user_id", userId);
+    formData.append("industry", industry);
+    formData.append("yoe_bucket", yoeBucket);
 
     const response = await axiosInstance.post("/storage", formData, {
       headers: {
@@ -65,13 +68,23 @@ class ResumeApi {
     return response.data;
   }
 
-  async deleteResume(resumeId: string): Promise<void> {
-    await axiosInstance.delete(`/resume/${resumeId}`);
+  async deleteResume(
+    resumeId: string,
+    imageKeyPrefix: string,
+    pdfStorageKey: string
+  ): Promise<void> {
+    await axiosInstance.delete(`/resume/${resumeId}`, {
+      data: {
+        image_key_prefix: imageKeyPrefix,
+        pdf_storage_key: pdfStorageKey,
+      },
+    });
   }
 
-  async downloadResume(resumeId: string): Promise<Blob> {
-    const response = await axiosInstance.get(`/resume/${resumeId}/download`, {
-      responseType: "blob",
+  async downloadResume(resumeId: string, pdfStorageKey: string): Promise<Blob> {
+    const response = await axiosInstance.post(`/resume/download`, {
+      resume_id: resumeId,
+      pdf_storage_key: pdfStorageKey,
     });
     return response.data;
   }

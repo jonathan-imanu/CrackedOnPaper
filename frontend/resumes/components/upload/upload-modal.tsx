@@ -2,7 +2,6 @@ import { useState } from "react";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import { UploadFlow } from "./upload-flow";
 import { Resume } from "@/resumes/types";
-import { useResumes } from "@/resumes/useResumes";
 import {
   Dialog,
   DialogContent,
@@ -13,41 +12,37 @@ import {
 
 interface UploadModalProps {
   trigger?: React.ReactNode;
+  resumes: Resume[];
+  onUpload: (
+    file: File,
+    name: string,
+    industry: string,
+    yoeBucket: string
+  ) => Promise<any>;
   onSuccess?: (resume: Resume) => void;
   onError?: (error: string) => void;
 }
 
-export function UploadModal({ trigger, onSuccess, onError }: UploadModalProps) {
+export function UploadModal({
+  trigger,
+  resumes,
+  onUpload,
+  onSuccess,
+  onError,
+}: UploadModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const { resumes, uploadResume } = useResumes();
 
-  const handleUpload = async (file: File, name: string, version: string) => {
+  const handleUpload = async (
+    file: File,
+    name: string,
+    version: string,
+    industry: string,
+    yoeBucket: string
+  ) => {
     setIsUploading(true);
     try {
-      await uploadResume(file, name, version);
-      // The upload was successful, but we don't have the resume object yet
-      // We'll call onSuccess with a placeholder and let the parent handle the refresh
-      const placeholderResume: Resume = {
-        ID: "temp",
-        Name: name,
-        OwnerUserID: "",
-        Industry: "",
-        YoeBucket: "",
-        CurrentEloInt: 0,
-        BattlesCount: 0,
-        LastMatchedAt: null,
-        InFlight: true,
-        CreatedAt: new Date().toISOString(),
-        PdfStorageKey: "",
-        PdfSizeBytes: file.size,
-        PdfMime: file.type,
-        ImageKeyPrefix: "",
-        PageCount: 0,
-        ImageReady: false,
-        Slot: 0,
-      };
-      onSuccess?.(placeholderResume);
+      await onUpload(file, name, industry, yoeBucket);
       setIsOpen(false);
     } catch (error) {
       const errorMessage =

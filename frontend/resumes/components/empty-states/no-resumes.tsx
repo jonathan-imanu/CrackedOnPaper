@@ -2,7 +2,16 @@ import { FileText, Upload } from "lucide-react";
 import { UploadModal } from "@/resumes/components/upload/upload-modal";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 
-export function NoResumes() {
+interface NoResumesProps {
+  onUpload: (
+    file: File,
+    name: string,
+    industry: string,
+    yoeBucket: string
+  ) => Promise<any>;
+}
+
+export function NoResumes({ onUpload }: NoResumesProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] sm:min-h-[70vh] py-10 sm:py-16 px-2 sm:px-4 w-full">
       <div className="text-center w-full max-w-xs sm:max-w-md md:max-w-lg mx-auto">
@@ -20,6 +29,8 @@ export function NoResumes() {
 
         <div className="flex justify-center">
           <UploadModal
+            resumes={[]}
+            onUpload={onUpload}
             trigger={
               <InteractiveHoverButton
                 icon={<Upload className="w-5 h-5" />}
