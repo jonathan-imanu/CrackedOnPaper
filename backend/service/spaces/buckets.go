@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -28,7 +29,9 @@ type BucketOps interface {
 	ListObjects(ctx context.Context, bucketName string, prefix string, delimiter string) ([]types.Object, error)
 	DeleteObjects(ctx context.Context, bucketName string, objectKeys []string) error
 	UploadFile(ctx context.Context, bucketName string, objectKey string, fileName string) error
+	StreamFileToWriter(ctx context.Context, bucketName, objectKey string, w io.Writer) (int64, error)
 }
+
 
 // createBucketClient creates a new bucket client with the given configuration
 func createBucketClient(ctx context.Context, bucketName string, region string, endpoint string, accessKeyID string, accessKeySecret string, log *zap.Logger) (*BucketClient, error) {
@@ -193,5 +196,23 @@ func (bucket *BucketClient) UploadFile(ctx context.Context, bucketName string, o
 	return err
 }
 
+func (bucket *BucketClient) StreamFileToWriter(ctx context.Context, bucketName, objectKey string, w io.Writer) (int64, error) {
+	result, err := bucket.Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(objectKey),
+	})
+	if err != nil {
+		bucket.log.Error("Failed to download file from bucket",
+			zap.String("bucket", bucketName),
+			zap.String("objectKey", objectKey),
+			zap.Error(err),
+		)
+		return 0, err
+	}
+	defer result.Body.Close()
+	
+	bytesWritten, err := io.Copy(w, result.Body)
+	return bytesWritten, err
+}
 
 var _ BucketOps = (*BucketClient)(nil)

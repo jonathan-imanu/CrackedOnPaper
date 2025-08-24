@@ -156,14 +156,10 @@ export function useResumes() {
     }
   };
 
-  const downloadResume = async (
-    resumeId: string,
-    resumeName: string,
-    pdfStorageKey: string
-  ) => {
+  const downloadResume = async (resumeId: string, resumeName: string) => {
     try {
       setError(null);
-      const blob = await resumeApi.downloadResume(resumeId, pdfStorageKey);
+      const blob = await resumeApi.downloadResume(resumeId);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
