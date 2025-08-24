@@ -46,12 +46,12 @@ func main() {
 	}
 
 	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
-    if err != nil {
+	if err != nil {
 		logger.Fatal("Failed to create connection pool", zap.Error(err))
-    }
-    defer pool.Close()
+	}
+	defer pool.Close()
 
-    db := db.New(pool)
+	db := db.New(pool)
 
 	logger.Info("Loaded configuration",
 		zap.String("resume_bucket", config.Resume.BucketName),
@@ -77,9 +77,6 @@ func main() {
 	}
 
 	imageService := image.NewImageService(logger, webpBucket)
-	
-	// TODO: Use webpBucket for webp operations when implemented
-	//_ = webpBucket // Suppress unused variable warning
 
 	authService := auth.NewAuthService(config.Supabase.JWTSecret, logger)
 	resumeService := resume.NewResumeService(db)
@@ -87,19 +84,14 @@ func main() {
 	storageHandler := storage.NewStorageHandler(resumeBucket, resumeService, authService, imageService, logger)
 	storageHandler.RegisterRoutes(api)
 
-	resumeHandler := resume_handler.NewResumeHandler(db, logger, authService)
+	resumeHandler := resume_handler.NewResumeHandler(db, webpBucket, resumeBucket, logger, authService)
 	resumeHandler.RegisterRoutes(api)
 
 	api.GET("/ping", authService.AuthMiddleware(), func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
 
-	// TODO: Move this & all auth to a separate module.
-	api.POST("/secret", authMiddleware(config.Supabase.JWTSecret), secretRouteHandler())
-
 	if err := router.Run(":8080"); err != nil {
 		log.Fatal(err)
 	}
 }
-
-
