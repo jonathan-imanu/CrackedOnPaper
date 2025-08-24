@@ -12,7 +12,6 @@ import (
 	"github.com/chai2010/webp"
 	"github.com/disintegration/imaging"
 	"github.com/gen2brain/go-fitz"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
@@ -34,10 +33,9 @@ func NewImageService(log *zap.Logger, webpBucket *spaces.WebpBucket) *ImageServi
 	return &ImageService{log: log, webpBucket: webpBucket}
 }
 
-// TODO: Implement this
 
 // Convert a PDF to a webp image of varying sizes.
-func (s *ImageService) ConvertPDFToWebp(ctx context.Context, file *multipart.FileHeader) (string, error) {
+func (s *ImageService) ConvertPDFToWebp(ctx context.Context, userID, resumeID string, file *multipart.FileHeader) (string, error) {
 	if file == nil {
 		s.log.Error("File is nil")
 		return "", errors.New("file is nil")
@@ -91,14 +89,9 @@ func (s *ImageService) ConvertPDFToWebp(ctx context.Context, file *multipart.Fil
 		return "", fmt.Errorf("failed to encode as WebP: %w", err)
 	}
 
-	// Generate unique identifiers for the resume
-	resumeID := uuid.New().String()
-	version := "v1"
-	hash := "initial"
-	filename := "preview.webp"
+	filename := file.Filename
 
-	// Upload to DigitalOcean Spaces
-	err = s.webpBucket.UploadBytes(ctx, resumeID, version, hash, filename, webpBuffer.Bytes(), "image/webp")
+	err = s.webpBucket.UploadBytes(ctx, userID, resumeID, filename, webpBuffer.Bytes(), "image/webp")
 	if err != nil {
 		s.log.Error("Failed to upload WebP to bucket", zap.Error(err))
 		return "", fmt.Errorf("failed to upload WebP: %w", err)
@@ -110,6 +103,8 @@ func (s *ImageService) ConvertPDFToWebp(ctx context.Context, file *multipart.Fil
 		zap.Int("webp_size_bytes", webpBuffer.Len()),
 	)
 
-	return resumeID, nil // Return resumeID for database storage
+	webpKey := s.webpBucket.Prefix(userID, resumeID, filename)
+
+	return webpKey, nil 
 
 }

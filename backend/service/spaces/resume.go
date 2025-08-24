@@ -24,11 +24,10 @@ type ResumeBucket struct {
 
 // IMPORTANT: Methods in this bucket take into account the format of the objects in the bucket.
 type ResumeBucketOps interface {
-	ListResumeVersionObjects(ctx context.Context, userID, resumeID string) ([]types.Object, error)
-	ListResumeObjects(ctx context.Context, userID, resumeID string) ([]types.Object, error)
-	DeleteResumeVersion(ctx context.Context, userID, resumeID string) error
-	DeleteResume(ctx context.Context, userID, resumeID string) error
+	DeleteResume(ctx context.Context, pdfStorageKey string) error
 	UploadResumeAsset(ctx context.Context, userID, resumeName string, file *multipart.FileHeader) error
+	Prefix(userID, resumeName string) string
+	ValidateResumeFile(file *multipart.FileHeader) (*utils.PDFMetadata, error)
 }
 
 // Singleton pattern to ensure only one instance of the resume bucket is created.
@@ -60,32 +59,13 @@ func (b *ResumeBucket) Prefix(userID, resumeName string) string {
 	return base + "/"
 }
 
-// List all objects for a specific resume version.
-func (b *ResumeBucket) ListResumeVersionObjects(ctx context.Context, userID, resumeName string) ([]types.Object, error) {
-	prefix := b.Prefix(userID, resumeName)
-	return b.ListObjects(ctx, b.Name, prefix, "")
-}
-
-// List all objects for a whole resume (all versions).
-func (b *ResumeBucket) ListResumeObjects(ctx context.Context, userID, resumeName string) ([]types.Object, error) {
-	prefix := b.Prefix(userID, resumeName)
-	return b.ListObjects(ctx, b.Name, prefix, "")
-}
-
-// Delete a specific resume version (all objects under .../{ver}/).
-func (b *ResumeBucket) DeleteResumeVersion(ctx context.Context, userID, resumeName string) error {
-	objs, err := b.ListResumeVersionObjects(ctx, userID, resumeName)
-	if err != nil {
-		return err
-	}
-	return b.deleteInChunks(ctx, objs)
-}
 
 // Delete an entire resume (all versions).
-func (b *ResumeBucket) DeleteResume(ctx context.Context, userID, resumeName string) error {
-	objs, err := b.ListResumeObjects(ctx, userID, resumeName)
-	if err != nil {
-		return err
+func (b *ResumeBucket) DeleteResume(ctx context.Context, pdfStorageKey string) error {
+	objs := []types.Object{
+		{
+			Key: aws.String(pdfStorageKey),
+		},
 	}
 	return b.deleteInChunks(ctx, objs)
 }

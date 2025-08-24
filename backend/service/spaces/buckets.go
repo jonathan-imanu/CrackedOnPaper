@@ -193,29 +193,5 @@ func (bucket *BucketClient) UploadFile(ctx context.Context, bucketName string, o
 	return err
 }
 
+
 var _ BucketOps = (*BucketClient)(nil)
-
-func NewDigitalOceanSpacesClient(ctx context.Context, log *zap.Logger) (*BucketClient, error) {
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(os.Getenv("DO_SPACES_REGION")),
-		config.WithCredentialsProvider(credentials.StaticCredentialsProvider{
-			Value: aws.Credentials{
-				AccessKeyID:     os.Getenv("DO_SPACES_KEY"),
-				SecretAccessKey: os.Getenv("DO_SPACES_SECRET"),
-			},
-		}),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS config: %w", err)
-	}
-
-	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(os.Getenv("DO_SPACES_ENDPOINT"))
-		o.UsePathStyle = false // DigitalOcean Spaces uses virtual-hosted-style URLs
-	})
-
-	return &BucketClient{
-		Client: client,
-		log:    log,
-	}, nil
-}

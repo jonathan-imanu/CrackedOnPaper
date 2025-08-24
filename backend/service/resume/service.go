@@ -114,6 +114,28 @@ func (s *ResumeService) DeleteResume(ctx context.Context, userID string, resumeI
 	})
 }
 
+func (s *ResumeService) UpdateImageMetadataForResume(ctx context.Context, userID string, resumeID string, imageMetadata *image.ImageMetadata) error {
+
+	userIDUUID, err := utils.ConvertStringToUUID(userID)
+	if err != nil {
+		return err
+	}
+
+	resumeIDUUID, err := utils.ConvertStringToUUID(resumeID)
+	if err != nil {
+		return err
+	}
+	
+	_, err = s.db.UpdateResumeImageMeta(ctx, sqlc.UpdateResumeImageMetaParams{
+		ID: resumeIDUUID,
+		OwnerUserID: userIDUUID,
+		ImageKeyPrefix: imageMetadata.ImageKeyPrefix,
+		ImageReady: imageMetadata.ImageReady,
+	})
+
+	return err
+}
+
 func (s *ResumeService) buildResume(ctx context.Context, ownerUserID string, name, industry, yoeBucket string, pdfMetadata *utils.PDFMetadata, imageMetadata *image.ImageMetadata) (*sqlc.AppResume, error) {
 	userID, err := utils.ConvertStringToUUID(ownerUserID)
 	if err != nil {
