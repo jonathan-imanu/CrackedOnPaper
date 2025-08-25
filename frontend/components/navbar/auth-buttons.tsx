@@ -13,8 +13,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AnimatedDropdownItem } from "@/components/animated-icons";
+import { LogoutIcon } from "@/components/animated-icons";
 
 interface AuthButtonsProps {
   isMobile?: boolean;
@@ -117,10 +118,9 @@ export const AuthButtons = ({ isMobile }: AuthButtonsProps) => {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleSignOut}>
-            <LogOut className="mr-2 h-4 w-4" />
+          <AnimatedDropdownItem onClick={handleSignOut} icon={LogoutIcon}>
             <span>Sign out</span>
-          </DropdownMenuItem>
+          </AnimatedDropdownItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

@@ -68,7 +68,7 @@ func main() {
 
 	resumeBucket, err := spaces.GetResumeBucket(context.Background(), logger, config)
 	if err != nil {
-		log.Fatal("Failed to create resume bucket", zap.Error(err))
+		log.Fatal("Failed to create resume fasdfsbucket", zap.Error(err))
 	}
 
 	webpBucket, err := spaces.GetWebpBucket(context.Background(), logger, config)
