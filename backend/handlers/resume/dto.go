@@ -10,7 +10,3 @@ type DeleteResumeRequest struct {
 	PdfStorageKey string `json:"pdf_storage_key" binding:"required"`
 }
 
-type DownloadResumeRequest struct {
-	ResumeID string `json:"resume_id" binding:"required,uuid4"`
-	PdfStorageKey string `json:"pdf_storage_key" binding:"required"`
-}

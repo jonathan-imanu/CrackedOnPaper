@@ -1,0 +1,96 @@
+name: crackedonpaper
+
+services:
+  # nginx reverse proxy (production only)
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    container_name: nginx-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./certs:/etc/nginx/certs
+      - ./vhost:/etc/nginx/vhost.d
+      - ./html:/usr/share/nginx/html
+    profiles:
+      - production
+      - development
+
+  # reverse proxy let's encrypt companion (production only)
+  nginx-proxy-acme:
+    image: nginxproxy/acme-companion
+    container_name: nginx-proxy-acme
+    restart: always
+    volumes_from:
+      - nginx-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./acme:/etc/acme.sh
+    environment:
+      - DEFAULT_EMAIL=jonathan.imanuel@gmail.com
+    profiles:
+      - production
+
+  # Next.js frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    restart: always
+    environment:
+      # Production certificate information for let's encrypt
+      - VIRTUAL_HOST=${FRONTEND_DOMAIN}
+      - LETSENCRYPT_HOST=${FRONTEND_DOMAIN}
+      - VIRTUAL_PORT=3000
+    ports:
+      - "3000:3000"
+    profiles:
+      - dev
+      - production
+    develop:
+      watch:
+        - action: rebuild
+          path: ./frontend
+          ignore:
+            - "frontend/node_modules/**"
+            - "frontend/.next/**"
+            - "**/.git/**"
+    # Production configuration
+    expose:
+      - "3000"
+
+  # Go backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: always
+    environment:
+      # Production certificate information for let's encrypt
+      - VIRTUAL_HOST=${BACKEND_DOMAIN}
+      - LETSENCRYPT_HOST=${BACKEND_DOMAIN}
+      - VIRTUAL_PORT=8080
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8080:8080"
+    profiles:
+      - development
+      - production
+    develop:
+      watch:
+        - action: rebuild
+          path: ./backend
+          ignore:
+            - "**/__pycache__/**"
+            - "**/.venv/**"
+            - "**/*.pyc"
+            - "**/.git/**"
+            - "backend/**/*.log"
+    # Production configuration
+    expose:
+      - "8080"

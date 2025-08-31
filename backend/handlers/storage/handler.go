@@ -3,6 +3,7 @@ package storage
 // A lone endpoint for uploading resumes.
 
 import (
+	"fmt"
 	"main/service/auth"
 	"main/service/image"
 	"main/service/resume"
@@ -10,6 +11,8 @@ import (
 	"mime"
 	"net/http"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -33,6 +36,7 @@ func NewStorageHandler(resumeBucket *spaces.ResumeBucket, resumeService *resume.
 func (h *StorageHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	g := rg.Group("/storage")
 	g.POST("", h.authService.AuthMiddleware(), h.UploadResume)
+	g.GET("/:resume_id/download", h.authService.AuthMiddleware(), h.DownloadResume)
 }
 
 func (h *StorageHandler) UploadResume(c *gin.Context) {
@@ -131,5 +135,73 @@ func (h *StorageHandler) UploadResume(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Resume uploaded successfully", "resume": resume, })
+}
+
+func (h *StorageHandler) DownloadResume(c *gin.Context) {
+	resumeID := c.Param("resume_id")
+	if resumeID == "" {
+		h.log.Error("Resume ID is required")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Resume ID is required"})
+		return
+	}
+	
+	userID, ok := h.authService.GetUserIDString(c)
+	if !ok {
+		h.log.Error("Failed to get user ID")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user ID"})
+		return
+	}
+
+	resume, err := h.ResumeService.GetResume(c.Request.Context(), userID, resumeID)
+	if err != nil {
+		h.log.Error("Failed to get resume", zap.Error(err))
+		c.JSON(http.StatusNotFound, gin.H{"error": "Resume not found"})
+		return
+	}
+
+	storageKey := h.ResumeBucket.Prefix(userID, resume.Name)
+	
+	headResult, err := h.ResumeBucket.BucketClient.Client.HeadObject(c.Request.Context(), &s3.HeadObjectInput{
+		Bucket: aws.String(h.ResumeBucket.BucketClient.Name),
+		Key:    aws.String(storageKey),
+	})
+
+	if err != nil {
+		h.log.Error("Failed to get file metadata", 
+			zap.String("storageKey", storageKey),
+			zap.Error(err))
+		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+		return
+	}
+	
+	filename := resume.Name + ".pdf"
+	c.Header("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	
+	if headResult.ContentType != nil {
+		c.Header("Content-Type", *headResult.ContentType)
+	} else {
+		c.Header("Content-Type", "application/pdf")
+	}
+	
+	if headResult.ContentLength != nil {
+		c.Header("Content-Length", fmt.Sprintf("%d", *headResult.ContentLength))
+	}
+	
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
+	
+	bytesWritten, err := h.ResumeBucket.BucketClient.StreamFileToWriter(c.Request.Context(), h.ResumeBucket.BucketClient.Name, storageKey, c.Writer)
+	if err != nil {
+		h.log.Error("Failed to stream file", 
+			zap.String("storageKey", storageKey),
+			zap.Error(err))
+		return
+	}
+	
+	h.log.Info("Resume downloaded successfully",
+		zap.String("resumeID", resumeID),
+		zap.String("userID", userID),
+		zap.Int64("bytesWritten", bytesWritten))
 }
 

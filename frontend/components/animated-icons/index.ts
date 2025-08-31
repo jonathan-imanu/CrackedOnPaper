@@ -10,6 +10,7 @@ export { FileTextIcon } from "./file-text";
 export { TrendingUpDownIcon } from "./trending-up-down";
 export { UsersIcon } from "./users";
 export { UploadIcon } from "./upload";
+export { LogoutIcon } from "./logout";
 
 // Export utilities and wrapper components
 export { useAnimatedIcon, type AnimatedIconHandle } from "./use-animated-icon";

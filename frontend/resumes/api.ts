@@ -81,10 +81,9 @@ class ResumeApi {
     });
   }
 
-  async downloadResume(resumeId: string, pdfStorageKey: string): Promise<Blob> {
-    const response = await axiosInstance.post(`/resume/download`, {
-      resume_id: resumeId,
-      pdf_storage_key: pdfStorageKey,
+  async downloadResume(resumeId: string): Promise<Blob> {
+    const response = await axiosInstance.get(`/storage/${resumeId}/download`, {
+      responseType: "blob",
     });
     return response.data;
   }

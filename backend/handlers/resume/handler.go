@@ -34,7 +34,6 @@ func (h *ResumeHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	g.PUT("", h.authService.AuthMiddleware(), h.RenameResume)
 	g.GET("", h.authService.AuthMiddleware(), h.GetResumes)
 	g.DELETE("/:resume_id", h.authService.AuthMiddleware(), h.DeleteResume)
-	g.POST("/download", h.authService.AuthMiddleware(), h.DownloadResume)
 }
 
 func (h *ResumeHandler) RenameResume(c *gin.Context) {
@@ -132,6 +131,17 @@ func (h *ResumeHandler) DeleteResume(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user ID"})
 		return
 	}
+	
+	err = h.db.DeleteResumeByIDForOwner(c.Request.Context(), db.DeleteResumeByIDForOwnerParams{
+		ID: resumeID,
+		OwnerUserID: userID,
+	})
+
+	if err != nil {
+		h.log.Error("Failed to delete resume", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete resume"})
+		return
+	}
 
 	err = h.resumeBucket.DeleteResume(c.Request.Context(), req.PdfStorageKey)
 	if err != nil {
@@ -147,27 +157,5 @@ func (h *ResumeHandler) DeleteResume(c *gin.Context) {
 		return
 	}
 
-	err = h.db.DeleteResumeByIDForOwner(c.Request.Context(), db.DeleteResumeByIDForOwnerParams{
-		ID: resumeID,
-		OwnerUserID: userID,
-	})
-
-	if err != nil {
-		h.log.Error("Failed to delete resume", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete resume"})
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "Resume deleted successfully"})
-}
-
-func (h *ResumeHandler) DownloadResume(c *gin.Context) {
-	var req DownloadResumeRequest
-	if err := c.ShouldBind(&req); err != nil {
-		h.log.Error("Failed to bind request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// TODO: Implement this.
 }

@@ -60,14 +60,9 @@ Resumes are anonymized and paired by industry and years of experience (YOE), ens
 
 ## ToDos
 
-- Download Resume functionality
 - H2H Matchmaking
 - Deployment on Digital Ocean Droplet
 - PKCE Auth Flow
-
-#### Download Resume functionality
-
-Should be a relatively easy. Just a heads up that downloading resumes on the frontend is in a broken state right now. You'll need to edit backend/handlers/resume/handler.go and add code to the buckets to download/get an object. The frontend logic is all in features/resumes with the specifics being in the useResumes hook.
 
 #### H2H Matchmaking
 

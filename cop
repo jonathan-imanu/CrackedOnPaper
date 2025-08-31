@@ -1,0 +1,71 @@
+#!/bin/bash
+
+set -x
+
+# Development environment
+dev() {
+    docker compose --project-name "crackedonpaper" down
+    
+    # Build and start services with dev profil e
+    docker compose --project-name "crackedonpaper" build --parallel backend frontend
+    docker compose --project-name "crackedonpaper" --profile development up -d
+    
+    # Run separate watch processes for hot reloading
+    echo "Starting separate watch processes for backend and frontend..."
+    docker compose --project-name "crackedonpaper" watch backend &
+    docker compose --project-name "crackedonpaper" watch frontend &
+    
+    # Wait for both processes
+    wait
+}
+
+# Production environment
+prod() {
+    docker compose --project-name "crackedonpaper" down
+    
+    docker compose --project-name "crackedonpaper" build --parallel backend frontend
+    docker compose --project-name "crackedonpaper" --profile production up -d
+}
+
+# View logs
+logs() {
+    docker compose --project-name "crackedonpaper" logs -f
+}
+
+# Stop all services
+stop() {
+    docker compose --project-name "crackedonpaper" down
+}
+
+
+# Show help
+help() {
+    echo "CrackedOnPaper Development Script"
+    echo ""
+    echo "Usage: $0 [command]"
+    echo ""
+    echo "Commands:"
+    echo "  dev     - Start development environment with hot reloading"
+    echo "  prod    - Start production environment with nginx reverse proxy"
+    echo "  logs    - View logs from all services"
+    echo "  stop    - Stop all services"
+    echo "  build   - Build backend and frontend services"
+    echo "  status  - Show status of all services"
+    echo "  db      - Database operations (reset|logs|connect)"
+    echo "  help    - Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0 dev           # Start development environment"
+    echo "  $0 prod          # Start production environment"
+    echo "  $0 db reset      # Reset database"
+    echo "  $0 logs          # View logs"
+}
+
+# Default to help if no command provided
+if [ $# -eq 0 ]; then
+    help
+    exit 1
+fi
+
+# Execute the command
+"$@"
