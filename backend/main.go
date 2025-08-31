@@ -15,9 +15,11 @@ import (
 
 	db "main/db/sqlc"
 	resume_handler "main/handlers/resume"
+	h2h_handler "main/handlers/h2h"
 	"main/handlers/storage"
 	"main/middleware"
 	"main/service/auth"
+	"main/service/h2h"
 	"main/service/image"
 	"main/service/resume"
 	"main/service/spaces"
@@ -80,12 +82,16 @@ func main() {
 
 	authService := auth.NewAuthService(config.Supabase.JWTSecret, logger)
 	resumeService := resume.NewResumeService(db)
+	h2hService := h2h.NewH2HService(db)
 
 	storageHandler := storage.NewStorageHandler(resumeBucket, resumeService, authService, imageService, logger)
 	storageHandler.RegisterRoutes(api)
 
 	resumeHandler := resume_handler.NewResumeHandler(db, webpBucket, resumeBucket, logger, authService)
 	resumeHandler.RegisterRoutes(api)
+
+	h2hHandler := h2h_handler.NewH2HHandler(db, h2hService, logger, authService)
+	h2hHandler.RegisterRoutes(api)
 
 	api.GET("/ping", authService.AuthMiddleware(), func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
