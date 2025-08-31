@@ -183,7 +183,7 @@ returning *;
 -- Update resume Elo and stats
 -- name: UpdateResumeEloStats :exec
 update app.resumes
-set current_elo_int = current_elo_int + $2,
+set current_elo_int = $2,
     battles_count = battles_count + 1,
     last_matched_at = now(),
     in_flight = false
