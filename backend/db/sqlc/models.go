@@ -8,6 +8,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AppFeedback struct {
+	ID             pgtype.UUID
+	MatchID        pgtype.UUID
+	TargetResumeID pgtype.UUID
+	AuthorUserID   pgtype.UUID
+	Visibility     string
+	Text           string
+	Tags           []string
+	CreatedAt      pgtype.Timestamptz
+}
+
+type AppMatch struct {
+	ID              pgtype.UUID
+	ResumeAID       pgtype.UUID
+	ResumeBID       pgtype.UUID
+	Industry        string
+	YoeBucket       string
+	CreatedAt       pgtype.Timestamptz
+	ResolvedAt      pgtype.Timestamptz
+	WinnerResumeID  pgtype.UUID
+	LoserResumeID   pgtype.UUID
+	DecidedByUserID pgtype.UUID
+	KFactorUsed     pgtype.Int4
+	DeltaA          pgtype.Int4
+	DeltaB          pgtype.Int4
+	State           string
+}
+
 type AppResume struct {
 	ID             pgtype.UUID
 	Name           string

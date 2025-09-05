@@ -11,6 +11,126 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cancelExpiredMatches = `-- name: CancelExpiredMatches :many
+update app.matches
+set state = 'cancelled'
+where state = 'created'
+  and created_at < $1
+returning resume_a_id, resume_b_id
+`
+
+type CancelExpiredMatchesRow struct {
+	ResumeAID pgtype.UUID
+	ResumeBID pgtype.UUID
+}
+
+// Cleanup expired matches
+func (q *Queries) CancelExpiredMatches(ctx context.Context, createdAt pgtype.Timestamptz) ([]CancelExpiredMatchesRow, error) {
+	rows, err := q.db.Query(ctx, cancelExpiredMatches, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CancelExpiredMatchesRow
+	for rows.Next() {
+		var i CancelExpiredMatchesRow
+		if err := rows.Scan(&i.ResumeAID, &i.ResumeBID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const createFeedback = `-- name: CreateFeedback :one
+insert into app.feedback (
+  match_id, target_resume_id, author_user_id, visibility, text, tags
+) values (
+  $1, $2, $3, $4, $5, $6
+)
+returning id, match_id, target_resume_id, author_user_id, visibility, text, tags, created_at
+`
+
+type CreateFeedbackParams struct {
+	MatchID        pgtype.UUID
+	TargetResumeID pgtype.UUID
+	AuthorUserID   pgtype.UUID
+	Visibility     string
+	Text           string
+	Tags           []string
+}
+
+// Add feedback
+func (q *Queries) CreateFeedback(ctx context.Context, arg CreateFeedbackParams) (AppFeedback, error) {
+	row := q.db.QueryRow(ctx, createFeedback,
+		arg.MatchID,
+		arg.TargetResumeID,
+		arg.AuthorUserID,
+		arg.Visibility,
+		arg.Text,
+		arg.Tags,
+	)
+	var i AppFeedback
+	err := row.Scan(
+		&i.ID,
+		&i.MatchID,
+		&i.TargetResumeID,
+		&i.AuthorUserID,
+		&i.Visibility,
+		&i.Text,
+		&i.Tags,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createMatch = `-- name: CreateMatch :one
+insert into app.matches (
+  resume_a_id, resume_b_id, industry, yoe_bucket, state
+) values (
+  $1, $2, $3, $4, 'created'
+)
+returning id, resume_a_id, resume_b_id, industry, yoe_bucket, created_at, resolved_at, winner_resume_id, loser_resume_id, decided_by_user_id, k_factor_used, delta_a, delta_b, state
+`
+
+type CreateMatchParams struct {
+	ResumeAID pgtype.UUID
+	ResumeBID pgtype.UUID
+	Industry  string
+	YoeBucket string
+}
+
+// Create a new match
+func (q *Queries) CreateMatch(ctx context.Context, arg CreateMatchParams) (AppMatch, error) {
+	row := q.db.QueryRow(ctx, createMatch,
+		arg.ResumeAID,
+		arg.ResumeBID,
+		arg.Industry,
+		arg.YoeBucket,
+	)
+	var i AppMatch
+	err := row.Scan(
+		&i.ID,
+		&i.ResumeAID,
+		&i.ResumeBID,
+		&i.Industry,
+		&i.YoeBucket,
+		&i.CreatedAt,
+		&i.ResolvedAt,
+		&i.WinnerResumeID,
+		&i.LoserResumeID,
+		&i.DecidedByUserID,
+		&i.KFactorUsed,
+		&i.DeltaA,
+		&i.DeltaB,
+		&i.State,
+	)
+	return i, err
+}
+
 const createResumeWithSlot = `-- name: CreateResumeWithSlot :one
 insert into app.resumes (
   owner_user_id, slot, name, industry, yoe_bucket,
@@ -104,13 +224,284 @@ order by s.slot
 limit 1
 `
 
-// --------------------- START OF RESUME RELATED QUERIES ----------------------------------------
+// --------------------- START OF RESUME RELATED QUERIES -----------------------------------
 // Allocate a free slot (1..3) for an owner -------------------------------
 func (q *Queries) FindFreeSlotForOwner(ctx context.Context, ownerUserID pgtype.UUID) (int16, error) {
 	row := q.db.QueryRow(ctx, findFreeSlotForOwner, ownerUserID)
 	var slot int16
 	err := row.Scan(&slot)
 	return slot, err
+}
+
+const findMatchPair = `-- name: FindMatchPair :one
+
+
+with available_count as (
+  select count(*) as cnt
+  from app.resumes r
+  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
+),
+seed as (
+  select r.id, r.current_elo_int
+  from app.resumes r
+  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
+  order by coalesce(r.last_matched_at, '-infinity'::timestamptz) asc
+  limit 1
+  for update skip locked
+),
+down as (
+  select r.id, r.current_elo_int
+  from app.resumes r
+  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
+    and r.id != (select id from seed)
+    and r.current_elo_int <= (select current_elo_int from seed)
+  order by r.current_elo_int desc, r.id
+  limit 1
+  for update skip locked
+),
+up as (
+  select r.id, r.current_elo_int
+  from app.resumes r
+  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
+    and r.id != (select id from seed)
+    and r.current_elo_int > (select current_elo_int from seed)
+  order by r.current_elo_int asc, r.id
+  limit 1
+  for update skip locked
+)
+select
+  case when (select cnt from available_count) >= 2 then (select id from seed) else null end as seed_id,
+  case when (select cnt from available_count) >= 2 then (select current_elo_int from seed) else null end as seed_elo,
+  case when (select cnt from available_count) >= 2 then (select id from down) else null end as down_id,
+  case when (select cnt from available_count) >= 2 then (select current_elo_int from down) else null end as down_elo,
+  case when (select cnt from available_count) >= 2 then (select id from up) else null end as up_id,
+  case when (select cnt from available_count) >= 2 then (select current_elo_int from up) else null end as up_elo
+`
+
+type FindMatchPairParams struct {
+	Industry  string
+	YoeBucket string
+}
+
+type FindMatchPairRow struct {
+	SeedID  interface{}
+	SeedElo interface{}
+	DownID  interface{}
+	DownElo interface{}
+	UpID    interface{}
+	UpElo   interface{}
+}
+
+// --------------------- END OF RESUME RELATED QUERIES -----------------------------------
+// --------------------- START OF MATCHMAKING RELATED QUERIES ----------------------------
+// Advanced pairing algorithm from ProjectContext.md
+func (q *Queries) FindMatchPair(ctx context.Context, arg FindMatchPairParams) (FindMatchPairRow, error) {
+	row := q.db.QueryRow(ctx, findMatchPair, arg.Industry, arg.YoeBucket)
+	var i FindMatchPairRow
+	err := row.Scan(
+		&i.SeedID,
+		&i.SeedElo,
+		&i.DownID,
+		&i.DownElo,
+		&i.UpID,
+		&i.UpElo,
+	)
+	return i, err
+}
+
+const getFeedbackForResume = `-- name: GetFeedbackForResume :many
+select f.id, f.match_id, f.target_resume_id, f.author_user_id, f.visibility, f.text, f.tags, f.created_at, m.industry, m.yoe_bucket
+from app.feedback f
+join app.matches m on f.match_id = m.id
+where f.target_resume_id = $1
+  and (f.visibility = 'public' or f.author_user_id = $2)
+order by f.created_at desc
+limit $3 offset $4
+`
+
+type GetFeedbackForResumeParams struct {
+	TargetResumeID pgtype.UUID
+	AuthorUserID   pgtype.UUID
+	Limit          int32
+	Offset         int32
+}
+
+type GetFeedbackForResumeRow struct {
+	ID             pgtype.UUID
+	MatchID        pgtype.UUID
+	TargetResumeID pgtype.UUID
+	AuthorUserID   pgtype.UUID
+	Visibility     string
+	Text           string
+	Tags           []string
+	CreatedAt      pgtype.Timestamptz
+	Industry       string
+	YoeBucket      string
+}
+
+// Get feedback for resume
+func (q *Queries) GetFeedbackForResume(ctx context.Context, arg GetFeedbackForResumeParams) ([]GetFeedbackForResumeRow, error) {
+	rows, err := q.db.Query(ctx, getFeedbackForResume,
+		arg.TargetResumeID,
+		arg.AuthorUserID,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetFeedbackForResumeRow
+	for rows.Next() {
+		var i GetFeedbackForResumeRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.MatchID,
+			&i.TargetResumeID,
+			&i.AuthorUserID,
+			&i.Visibility,
+			&i.Text,
+			&i.Tags,
+			&i.CreatedAt,
+			&i.Industry,
+			&i.YoeBucket,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLeaderboard = `-- name: GetLeaderboard :many
+select id, name, owner_user_id, industry, yoe_bucket, current_elo_int, battles_count
+from app.resumes
+where ($1 = '' or industry = $1)
+  and ($2 = '' or yoe_bucket = $2)
+  and battles_count >= $3
+order by current_elo_int desc, id
+limit $4 offset $5
+`
+
+type GetLeaderboardParams struct {
+	Column1      interface{}
+	Column2      interface{}
+	BattlesCount int32
+	Limit        int32
+	Offset       int32
+}
+
+type GetLeaderboardRow struct {
+	ID            pgtype.UUID
+	Name          string
+	OwnerUserID   pgtype.UUID
+	Industry      string
+	YoeBucket     string
+	CurrentEloInt int32
+	BattlesCount  int32
+}
+
+// Leaderboard query
+func (q *Queries) GetLeaderboard(ctx context.Context, arg GetLeaderboardParams) ([]GetLeaderboardRow, error) {
+	rows, err := q.db.Query(ctx, getLeaderboard,
+		arg.Column1,
+		arg.Column2,
+		arg.BattlesCount,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLeaderboardRow
+	for rows.Next() {
+		var i GetLeaderboardRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OwnerUserID,
+			&i.Industry,
+			&i.YoeBucket,
+			&i.CurrentEloInt,
+			&i.BattlesCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMatchWithResumes = `-- name: GetMatchWithResumes :one
+select
+  m.id as match_id,
+  m.resume_a_id,
+  m.resume_b_id,
+  m.industry,
+  m.yoe_bucket,
+  m.created_at as match_created_at,
+  m.state,
+  ra.name as resume_a_name,
+  ra.image_key_prefix as resume_a_image_prefix,
+  ra.current_elo_int as resume_a_elo,
+  ra.battles_count as resume_a_battles,
+  rb.name as resume_b_name,
+  rb.image_key_prefix as resume_b_image_prefix,
+  rb.current_elo_int as resume_b_elo,
+  rb.battles_count as resume_b_battles
+from app.matches m
+join app.resumes ra on m.resume_a_id = ra.id
+join app.resumes rb on m.resume_b_id = rb.id
+where m.id = $1
+`
+
+type GetMatchWithResumesRow struct {
+	MatchID            pgtype.UUID
+	ResumeAID          pgtype.UUID
+	ResumeBID          pgtype.UUID
+	Industry           string
+	YoeBucket          string
+	MatchCreatedAt     pgtype.Timestamptz
+	State              string
+	ResumeAName        string
+	ResumeAImagePrefix pgtype.Text
+	ResumeAElo         int32
+	ResumeABattles     int32
+	ResumeBName        string
+	ResumeBImagePrefix pgtype.Text
+	ResumeBElo         int32
+	ResumeBBattles     int32
+}
+
+// Get match by ID with resume details (always fetches current stats)
+func (q *Queries) GetMatchWithResumes(ctx context.Context, id pgtype.UUID) (GetMatchWithResumesRow, error) {
+	row := q.db.QueryRow(ctx, getMatchWithResumes, id)
+	var i GetMatchWithResumesRow
+	err := row.Scan(
+		&i.MatchID,
+		&i.ResumeAID,
+		&i.ResumeBID,
+		&i.Industry,
+		&i.YoeBucket,
+		&i.MatchCreatedAt,
+		&i.State,
+		&i.ResumeAName,
+		&i.ResumeAImagePrefix,
+		&i.ResumeAElo,
+		&i.ResumeABattles,
+		&i.ResumeBName,
+		&i.ResumeBImagePrefix,
+		&i.ResumeBElo,
+		&i.ResumeBBattles,
+	)
+	return i, err
 }
 
 const getResumeByID = `-- name: GetResumeByID :one
@@ -179,6 +570,53 @@ func (q *Queries) GetResumeByIDForOwner(ctx context.Context, arg GetResumeByIDFo
 		&i.Slot,
 	)
 	return i, err
+}
+
+const getResumesForEloUpdate = `-- name: GetResumesForEloUpdate :many
+select id, current_elo_int, battles_count
+from app.resumes
+where id = any($1::uuid[])
+order by id
+for update
+`
+
+type GetResumesForEloUpdateRow struct {
+	ID            pgtype.UUID
+	CurrentEloInt int32
+	BattlesCount  int32
+}
+
+// Get resumes for Elo calculation (with locking)
+func (q *Queries) GetResumesForEloUpdate(ctx context.Context, dollar_1 []pgtype.UUID) ([]GetResumesForEloUpdateRow, error) {
+	rows, err := q.db.Query(ctx, getResumesForEloUpdate, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetResumesForEloUpdateRow
+	for rows.Next() {
+		var i GetResumesForEloUpdateRow
+		if err := rows.Scan(&i.ID, &i.CurrentEloInt, &i.BattlesCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const incrementBattlesForMatch = `-- name: IncrementBattlesForMatch :exec
+update app.resumes
+set battles_count = battles_count + 1
+where id = any($1::uuid[])
+`
+
+// Increment battles count for both resumes in a match
+func (q *Queries) IncrementBattlesForMatch(ctx context.Context, dollar_1 []pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, incrementBattlesForMatch, dollar_1)
+	return err
 }
 
 const listOwnerSlots = `-- name: ListOwnerSlots :many
@@ -261,6 +699,73 @@ func (q *Queries) ListResumesByOwner(ctx context.Context, arg ListResumesByOwner
 	return items, nil
 }
 
+const resetInFlightStatus = `-- name: ResetInFlightStatus :exec
+update app.resumes
+set in_flight = false
+where id = any($1::uuid[])
+`
+
+// Reset in_flight status for cancelled matches
+func (q *Queries) ResetInFlightStatus(ctx context.Context, dollar_1 []pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, resetInFlightStatus, dollar_1)
+	return err
+}
+
+const resolveMatch = `-- name: ResolveMatch :one
+update app.matches
+set resolved_at = now(),
+    winner_resume_id = $2,
+    loser_resume_id = $3,
+    decided_by_user_id = $4,
+    delta_a = $5,
+    delta_b = $6,
+    k_factor_used = $7,
+    state = 'resolved'
+where id = $1
+returning id, resume_a_id, resume_b_id, industry, yoe_bucket, created_at, resolved_at, winner_resume_id, loser_resume_id, decided_by_user_id, k_factor_used, delta_a, delta_b, state
+`
+
+type ResolveMatchParams struct {
+	ID              pgtype.UUID
+	WinnerResumeID  pgtype.UUID
+	LoserResumeID   pgtype.UUID
+	DecidedByUserID pgtype.UUID
+	DeltaA          pgtype.Int4
+	DeltaB          pgtype.Int4
+	KFactorUsed     pgtype.Int4
+}
+
+// Resolve match with Elo updates
+func (q *Queries) ResolveMatch(ctx context.Context, arg ResolveMatchParams) (AppMatch, error) {
+	row := q.db.QueryRow(ctx, resolveMatch,
+		arg.ID,
+		arg.WinnerResumeID,
+		arg.LoserResumeID,
+		arg.DecidedByUserID,
+		arg.DeltaA,
+		arg.DeltaB,
+		arg.KFactorUsed,
+	)
+	var i AppMatch
+	err := row.Scan(
+		&i.ID,
+		&i.ResumeAID,
+		&i.ResumeBID,
+		&i.Industry,
+		&i.YoeBucket,
+		&i.CreatedAt,
+		&i.ResolvedAt,
+		&i.WinnerResumeID,
+		&i.LoserResumeID,
+		&i.DecidedByUserID,
+		&i.KFactorUsed,
+		&i.DeltaA,
+		&i.DeltaB,
+		&i.State,
+	)
+	return i, err
+}
+
 const setResumeInFlight = `-- name: SetResumeInFlight :exec
 update app.resumes
 set in_flight = $3
@@ -275,6 +780,23 @@ type SetResumeInFlightParams struct {
 
 func (q *Queries) SetResumeInFlight(ctx context.Context, arg SetResumeInFlightParams) error {
 	_, err := q.db.Exec(ctx, setResumeInFlight, arg.ID, arg.OwnerUserID, arg.InFlight)
+	return err
+}
+
+const setResumesInFlight = `-- name: SetResumesInFlight :exec
+update app.resumes
+set in_flight = $2
+where id = any($1::uuid[])
+`
+
+type SetResumesInFlightParams struct {
+	Column1  []pgtype.UUID
+	InFlight bool
+}
+
+// Mark resumes as in-flight
+func (q *Queries) SetResumesInFlight(ctx context.Context, arg SetResumesInFlightParams) error {
+	_, err := q.db.Exec(ctx, setResumesInFlight, arg.Column1, arg.InFlight)
 	return err
 }
 
@@ -321,6 +843,25 @@ func (q *Queries) UpdateResumeBuckets(ctx context.Context, arg UpdateResumeBucke
 		&i.Slot,
 	)
 	return i, err
+}
+
+const updateResumeEloStats = `-- name: UpdateResumeEloStats :exec
+update app.resumes
+set current_elo_int = $2,
+    last_matched_at = now(),
+    in_flight = false
+where id = $1
+`
+
+type UpdateResumeEloStatsParams struct {
+	ID            pgtype.UUID
+	CurrentEloInt int32
+}
+
+// Update resume Elo and stats
+func (q *Queries) UpdateResumeEloStats(ctx context.Context, arg UpdateResumeEloStatsParams) error {
+	_, err := q.db.Exec(ctx, updateResumeEloStats, arg.ID, arg.CurrentEloInt)
+	return err
 }
 
 const updateResumeImageMeta = `-- name: UpdateResumeImageMeta :one
