@@ -24,7 +24,7 @@ docker compose --project-name "crackedonpaper" down
 docker compose --project-name "crackedonpaper" build --parallel backend frontend
 docker compose --project-name "crackedonpaper" --profile development up -d
 
-echo Please use wf & wb to start separate watch processes for backend and frontend...
+echo Please use 'cop wf' and 'cop wb' to start separate watch processes for backend and frontend...
 goto end
 
 :wf

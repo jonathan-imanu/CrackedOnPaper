@@ -236,7 +236,12 @@ func (q *Queries) FindFreeSlotForOwner(ctx context.Context, ownerUserID pgtype.U
 const findMatchPair = `-- name: FindMatchPair :one
 
 
-with seed as (
+with available_count as (
+  select count(*) as cnt
+  from app.resumes r
+  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
+),
+seed as (
   select r.id, r.current_elo_int
   from app.resumes r
   where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
@@ -265,12 +270,12 @@ up as (
   for update skip locked
 )
 select
-  (select id from seed) as seed_id,
-  (select current_elo_int from seed) as seed_elo,
-  (select id from down) as down_id,
-  (select current_elo_int from down) as down_elo,
-  (select id from up) as up_id,
-  (select current_elo_int from up) as up_elo
+  case when (select cnt from available_count) >= 2 then (select id from seed) else null end as seed_id,
+  case when (select cnt from available_count) >= 2 then (select current_elo_int from seed) else null end as seed_elo,
+  case when (select cnt from available_count) >= 2 then (select id from down) else null end as down_id,
+  case when (select cnt from available_count) >= 2 then (select current_elo_int from down) else null end as down_elo,
+  case when (select cnt from available_count) >= 2 then (select id from up) else null end as up_id,
+  case when (select cnt from available_count) >= 2 then (select current_elo_int from up) else null end as up_elo
 `
 
 type FindMatchPairParams struct {
@@ -279,12 +284,12 @@ type FindMatchPairParams struct {
 }
 
 type FindMatchPairRow struct {
-	SeedID  pgtype.UUID
-	SeedElo int32
-	DownID  pgtype.UUID
-	DownElo int32
-	UpID    pgtype.UUID
-	UpElo   int32
+	SeedID  interface{}
+	SeedElo interface{}
+	DownID  interface{}
+	DownElo interface{}
+	UpID    interface{}
+	UpElo   interface{}
 }
 
 // --------------------- END OF RESUME RELATED QUERIES -----------------------------------
@@ -374,16 +379,16 @@ func (q *Queries) GetFeedbackForResume(ctx context.Context, arg GetFeedbackForRe
 const getLeaderboard = `-- name: GetLeaderboard :many
 select id, name, owner_user_id, industry, yoe_bucket, current_elo_int, battles_count
 from app.resumes
-where industry = coalesce($1, industry)
-  and yoe_bucket = coalesce($2, yoe_bucket)
+where ($1 = '' or industry = $1)
+  and ($2 = '' or yoe_bucket = $2)
   and battles_count >= $3
 order by current_elo_int desc, id
 limit $4 offset $5
 `
 
 type GetLeaderboardParams struct {
-	Industry     string
-	YoeBucket    string
+	Column1      interface{}
+	Column2      interface{}
 	BattlesCount int32
 	Limit        int32
 	Offset       int32
@@ -402,8 +407,8 @@ type GetLeaderboardRow struct {
 // Leaderboard query
 func (q *Queries) GetLeaderboard(ctx context.Context, arg GetLeaderboardParams) ([]GetLeaderboardRow, error) {
 	rows, err := q.db.Query(ctx, getLeaderboard,
-		arg.Industry,
-		arg.YoeBucket,
+		arg.Column1,
+		arg.Column2,
 		arg.BattlesCount,
 		arg.Limit,
 		arg.Offset,
@@ -446,9 +451,11 @@ select
   ra.name as resume_a_name,
   ra.image_key_prefix as resume_a_image_prefix,
   ra.current_elo_int as resume_a_elo,
+  ra.battles_count as resume_a_battles,
   rb.name as resume_b_name,
   rb.image_key_prefix as resume_b_image_prefix,
-  rb.current_elo_int as resume_b_elo
+  rb.current_elo_int as resume_b_elo,
+  rb.battles_count as resume_b_battles
 from app.matches m
 join app.resumes ra on m.resume_a_id = ra.id
 join app.resumes rb on m.resume_b_id = rb.id
@@ -466,12 +473,14 @@ type GetMatchWithResumesRow struct {
 	ResumeAName        string
 	ResumeAImagePrefix pgtype.Text
 	ResumeAElo         int32
+	ResumeABattles     int32
 	ResumeBName        string
 	ResumeBImagePrefix pgtype.Text
 	ResumeBElo         int32
+	ResumeBBattles     int32
 }
 
-// Get match by ID with resume details
+// Get match by ID with resume details (always fetches current stats)
 func (q *Queries) GetMatchWithResumes(ctx context.Context, id pgtype.UUID) (GetMatchWithResumesRow, error) {
 	row := q.db.QueryRow(ctx, getMatchWithResumes, id)
 	var i GetMatchWithResumesRow
@@ -486,9 +495,11 @@ func (q *Queries) GetMatchWithResumes(ctx context.Context, id pgtype.UUID) (GetM
 		&i.ResumeAName,
 		&i.ResumeAImagePrefix,
 		&i.ResumeAElo,
+		&i.ResumeABattles,
 		&i.ResumeBName,
 		&i.ResumeBImagePrefix,
 		&i.ResumeBElo,
+		&i.ResumeBBattles,
 	)
 	return i, err
 }
@@ -594,6 +605,18 @@ func (q *Queries) GetResumesForEloUpdate(ctx context.Context, dollar_1 []pgtype.
 		return nil, err
 	}
 	return items, nil
+}
+
+const incrementBattlesForMatch = `-- name: IncrementBattlesForMatch :exec
+update app.resumes
+set battles_count = battles_count + 1
+where id = any($1::uuid[])
+`
+
+// Increment battles count for both resumes in a match
+func (q *Queries) IncrementBattlesForMatch(ctx context.Context, dollar_1 []pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, incrementBattlesForMatch, dollar_1)
+	return err
 }
 
 const listOwnerSlots = `-- name: ListOwnerSlots :many
@@ -825,7 +848,6 @@ func (q *Queries) UpdateResumeBuckets(ctx context.Context, arg UpdateResumeBucke
 const updateResumeEloStats = `-- name: UpdateResumeEloStats :exec
 update app.resumes
 set current_elo_int = $2,
-    battles_count = battles_count + 1,
     last_matched_at = now(),
     in_flight = false
 where id = $1

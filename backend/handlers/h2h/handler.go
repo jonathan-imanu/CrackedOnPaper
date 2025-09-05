@@ -140,7 +140,7 @@ func (h *H2HHandler) GetLeaderboard(c *gin.Context) {
         req.Limit = 50
     }
     if req.MinBattles < 0 {
-        req.MinBattles = 5
+        req.MinBattles = 0
     }
 
     resumes, err := h.h2hService.GetLeaderboard(
@@ -173,14 +173,14 @@ func (h *H2HHandler) convertToMatchResponse(result *sqlc.GetMatchWithResumesRow)
 			Name:		 result.ResumeAName,
 			ImageKeyPrefix: h.convertPgTextToString(result.ResumeAImagePrefix),
 			CurrentElo: int(result.ResumeAElo),
-			BattlesCount: 0, // Note: battles count not included in GetMatchWithResumesRow
+			BattlesCount: int(result.ResumeABattles),
 		},
 		ResumeB: ResumeDetail{
 			ID:			 h.convertPgUUIDToUUID(result.ResumeBID),
 			Name:		 result.ResumeBName,
 			ImageKeyPrefix: h.convertPgTextToString(result.ResumeBImagePrefix),
 			CurrentElo: int(result.ResumeBElo),
-			BattlesCount: 0, // Note: battles count not included in GetMatchWithResumesRow
+			BattlesCount: int(result.ResumeBBattles),
 		},
 	}
 }

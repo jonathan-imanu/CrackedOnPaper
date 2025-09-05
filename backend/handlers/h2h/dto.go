@@ -17,8 +17,8 @@ type ResolveMatchRequest struct {
 type LeaderboardRequest struct {
 	Industry  *string `form:"industry" binding:"omitempty,oneof=tech finance healthcare"`
 	YoeBucket *string `form:"yoe_bucket" binding:"omitempty,oneof=entry mid senior"`
-	MinBattles int    `form:"min_battles"`
-	Limit      int    `form:"limit" binding:"min=1,max=100"`
+	MinBattles int    `form:"min_battles" binding:"min=0"`
+	Limit      int    `form:"limit" binding:"omitempty,min=1,max=100"`
 	Offset     int    `form:"offset" binding:"min=0"`
 }
 

@@ -94,7 +94,12 @@ order by slot;
 
 -- Advanced pairing algorithm from ProjectContext.md 
 -- name: FindMatchPair :one
-with seed as (
+with available_count as (
+  select count(*) as cnt
+  from app.resumes r
+  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
+),
+seed as (
   select r.id, r.current_elo_int
   from app.resumes r
   where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
@@ -123,12 +128,12 @@ up as (
   for update skip locked
 )
 select
-  (select id from seed) as seed_id,
-  (select current_elo_int from seed) as seed_elo,
-  (select id from down) as down_id,
-  (select current_elo_int from down) as down_elo,
-  (select id from up) as up_id,
-  (select current_elo_int from up) as up_elo;
+  case when (select cnt from available_count) >= 2 then (select id from seed) else null end as seed_id,
+  case when (select cnt from available_count) >= 2 then (select current_elo_int from seed) else null end as seed_elo,
+  case when (select cnt from available_count) >= 2 then (select id from down) else null end as down_id,
+  case when (select cnt from available_count) >= 2 then (select current_elo_int from down) else null end as down_elo,
+  case when (select cnt from available_count) >= 2 then (select id from up) else null end as up_id,
+  case when (select cnt from available_count) >= 2 then (select current_elo_int from up) else null end as up_elo;
 
 -- Mark resumes as in-flight
 -- name: SetResumesInFlight :exec
@@ -145,7 +150,7 @@ insert into app.matches (
 )
 returning *;
 
--- Get match by ID with resume details
+-- Get match by ID with resume details (always fetches current stats)
 -- name: GetMatchWithResumes :one
 select
   m.id as match_id,
@@ -158,9 +163,11 @@ select
   ra.name as resume_a_name,
   ra.image_key_prefix as resume_a_image_prefix,
   ra.current_elo_int as resume_a_elo,
+  ra.battles_count as resume_a_battles,
   rb.name as resume_b_name,
   rb.image_key_prefix as resume_b_image_prefix,
-  rb.current_elo_int as resume_b_elo
+  rb.current_elo_int as resume_b_elo,
+  rb.battles_count as resume_b_battles
 from app.matches m
 join app.resumes ra on m.resume_a_id = ra.id
 join app.resumes rb on m.resume_b_id = rb.id
@@ -184,10 +191,15 @@ returning *;
 -- name: UpdateResumeEloStats :exec
 update app.resumes
 set current_elo_int = $2,
-    battles_count = battles_count + 1,
     last_matched_at = now(),
     in_flight = false
 where id = $1;
+
+-- Increment battles count for both resumes in a match
+-- name: IncrementBattlesForMatch :exec
+update app.resumes
+set battles_count = battles_count + 1
+where id = any($1::uuid[]);
 
 -- Get resumes for Elo calculation (with locking)
 -- name: GetResumesForEloUpdate :many
@@ -201,8 +213,8 @@ for update;
 -- name: GetLeaderboard :many
 select id, name, owner_user_id, industry, yoe_bucket, current_elo_int, battles_count
 from app.resumes
-where industry = coalesce($1, industry)
-  and yoe_bucket = coalesce($2, yoe_bucket)
+where ($1 = '' or industry = $1)
+  and ($2 = '' or yoe_bucket = $2)
   and battles_count >= $3
 order by current_elo_int desc, id
 limit $4 offset $5;

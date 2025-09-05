@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
-	
+
 	sqlc "main/db/sqlc"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -26,37 +26,44 @@ func (s *H2HService) CreateMatch(ctx context.Context, industry, yoeBucket string
 	if err != nil {
 		return nil, fmt.Errorf("failed to find match pair: %w", err)
 	}
-	
-	if !pair.SeedID.Valid {
+
+	seedID, seedIDValid := convertToUUID(pair.SeedID)
+	seedElo, _ := convertToInt32(pair.SeedElo)
+	downID, downIDValid := convertToUUID(pair.DownID)
+	downElo, _ := convertToInt32(pair.DownElo)
+	upID, upIDValid := convertToUUID(pair.UpID)
+	upElo, _ := convertToInt32(pair.UpElo)
+
+	if !seedIDValid {
 		return nil, fmt.Errorf("no matches available for %s/%s", industry, yoeBucket)
 	}
 
-	if !pair.DownID.Valid && !pair.UpID.Valid {
+	if !downIDValid && !upIDValid {
 		return nil, fmt.Errorf("insufficient candidates for matching in %s/%s", industry, yoeBucket)
 	}
 
 	// Choose the closer opponent (down vs up)
 	var opponentID pgtype.UUID
-	if pair.DownID.Valid && pair.UpID.Valid {
+	if downIDValid && upIDValid {
 		// Both available - choose closer ELo
-		downDiff := abs(pair.SeedElo - pair.DownElo)
-		upDiff := abs(pair.SeedElo - pair.UpElo)
+		downDiff := abs(seedElo - downElo)
+		upDiff := abs(seedElo - upElo)
 
 		if downDiff <= upDiff {
-			opponentID = pair.DownID
+			opponentID = downID
 		} else {
-			opponentID = pair.UpID
+			opponentID = upID
 		}
-	} else if pair.DownID.Valid {
-		opponentID = pair.DownID
+	} else if downIDValid {
+		opponentID = downID
 	} else {
-		opponentID = pair.UpID
+		opponentID = upID
 	}
 
 	// Mark both resumes as in-flight
 	err = s.db.SetResumesInFlight(ctx, sqlc.SetResumesInFlightParams{
-		Column1:   []pgtype.UUID{pair.SeedID, opponentID},
-		InFlight:  true,
+		Column1:  []pgtype.UUID{seedID, opponentID},
+		InFlight: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to set resumes in-flight: %w", err)
@@ -64,7 +71,7 @@ func (s *H2HService) CreateMatch(ctx context.Context, industry, yoeBucket string
 
 	// Create the match
 	match, err := s.db.CreateMatch(ctx, sqlc.CreateMatchParams{
-		ResumeAID: pair.SeedID,
+		ResumeAID: seedID,
 		ResumeBID: opponentID,
 		Industry:  industry,
 		YoeBucket: yoeBucket,
@@ -102,7 +109,7 @@ func (s *H2HService) ResolveMatch(ctx context.Context, matchID pgtype.UUID, winn
 		return nil, fmt.Errorf("winner must be one of the match participants")
 	}
 
-	// Get resumes for Elo calculation 
+	// Get resumes for Elo calculation
 	resumeIDs := []pgtype.UUID{matchDetails.ResumeAID, matchDetails.ResumeBID}
 	resumes, err := s.db.GetResumesForEloUpdate(ctx, resumeIDs)
 	if err != nil {
@@ -113,7 +120,6 @@ func (s *H2HService) ResolveMatch(ctx context.Context, matchID pgtype.UUID, winn
 		return nil, fmt.Errorf("expected 2 resumes, got %d", len(resumes))
 	}
 
-	
 	// Map resumes by ID for easy access
 	var resumeA, resumeB sqlc.GetResumesForEloUpdateRow
 	for _, resume := range resumes {
@@ -137,9 +143,9 @@ func (s *H2HService) ResolveMatch(ctx context.Context, matchID pgtype.UUID, winn
 	newEloA := resumeA.CurrentEloInt + int32(deltaA)
 	newEloB := resumeB.CurrentEloInt + int32(deltaB)
 
-	// Update both resumes atomically
+	// Update both resumes' ELO ratings
 	err = s.db.UpdateResumeEloStats(ctx, sqlc.UpdateResumeEloStatsParams{
-		ID:    matchDetails.ResumeAID,
+		ID:            matchDetails.ResumeAID,
 		CurrentEloInt: newEloA,
 	})
 	if err != nil {
@@ -147,11 +153,17 @@ func (s *H2HService) ResolveMatch(ctx context.Context, matchID pgtype.UUID, winn
 	}
 
 	err = s.db.UpdateResumeEloStats(ctx, sqlc.UpdateResumeEloStatsParams{
-		ID:    matchDetails.ResumeBID,
+		ID:            matchDetails.ResumeBID,
 		CurrentEloInt: newEloB,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update resume B: %w", err)
+	}
+
+	// Increment battles count for both resumes
+	err = s.db.IncrementBattlesForMatch(ctx, []pgtype.UUID{matchDetails.ResumeAID, matchDetails.ResumeBID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to increment battles count: %w", err)
 	}
 
 	// Resolve the match - use pgtype.Int4 for nullable integers
@@ -187,7 +199,7 @@ func (s *H2HService) GetLeaderboard(ctx context.Context, industry *string, yoeBu
 		limit = 50
 	}
 	if battlesCount < 0 {
-		battlesCount = 5
+		battlesCount = 0
 	}
 
 	var industryStr, yoeBucketStr string
@@ -199,8 +211,8 @@ func (s *H2HService) GetLeaderboard(ctx context.Context, industry *string, yoeBu
 	}
 
 	resumes, err := s.db.GetLeaderboard(ctx, sqlc.GetLeaderboardParams{
-		Industry:     industryStr,
-		YoeBucket:    yoeBucketStr,
+		Column1:     industryStr,
+		Column2:    yoeBucketStr,
 		BattlesCount: battlesCount,
 		Limit:        limit,
 		Offset:       offset,
@@ -211,7 +223,6 @@ func (s *H2HService) GetLeaderboard(ctx context.Context, industry *string, yoeBu
 
 	return resumes, nil
 }
-
 
 // Helper functions
 func abs(a int32) int32 {
@@ -254,3 +265,59 @@ func calculateEloDeltas(ratingA, ratingB int, aWins bool, kFactor int) (int, int
 	return deltaA, deltaB
 }
 
+func convertToUUID(val interface{}) (pgtype.UUID, bool) {
+	if val == nil {
+		return pgtype.UUID{}, false
+	}
+
+	switch v := val.(type) {
+	case pgtype.UUID:
+		return v, v.Valid
+	case string:
+		uuid := pgtype.UUID{}
+		err := uuid.Scan(v)
+		return uuid, err == nil && uuid.Valid
+	case [16]uint8:
+		// Convert byte array directly to pgtype.UUID
+		uuid := pgtype.UUID{
+			Bytes: v,
+			Valid: true,
+		}
+		return uuid, true
+	case []uint8:
+		if len(v) == 16 {
+			// Convert byte slice to array and then to pgtype.UUID
+			var byteArray [16]uint8
+			copy(byteArray[:], v)
+			uuid := pgtype.UUID{
+				Bytes: byteArray,
+				Valid: true,
+			}
+			return uuid, true
+		}
+		return pgtype.UUID{}, false
+	default:
+		// Debug: log unexpected types
+		fmt.Printf("DEBUG: Unexpected UUID type: %T, value: %v\n", v, v)
+		return pgtype.UUID{}, false
+	}
+}
+
+func convertToInt32(val interface{}) (int32, bool) {
+	if val == nil {
+		return 0, false
+	}
+
+	switch v := val.(type) {
+	case int32:
+		return v, true
+	case int:
+		return int32(v), true
+	case int64:
+		return int32(v), true
+	case pgtype.Int4:
+		return v.Int32, v.Valid
+	default:
+		return 0, false
+	}
+}
