@@ -1,6 +1,6 @@
-import { UploadModal } from "@/resumes/components/upload/upload-modal";
+import { UploadModal } from "@/features/resumes/components/upload/upload-modal";
 import { AnimatedButton, UploadIcon } from "@/components/animated-icons";
-import { Resume } from "@/resumes/types";
+import { Resume } from "@/features/resumes/types";
 
 interface ResumeHeaderProps {
   resumes: Resume[];

@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 // States
-import { NoResumes } from "@/resumes/components/empty-states/no-resumes";
-import { NotAuthenticatedPage } from "@/resumes/components/empty-states/not-authenticated";
-import { LoadingState } from "@/resumes/components/loading-state";
+import { NoResumes } from "@/features/resumes/components/empty-states/no-resumes";
+import { NotAuthenticatedPage } from "@/features/resumes/components/empty-states/not-authenticated";
+import { LoadingState } from "@/features/resumes/components/loading-state";
 
 // Components
-import { ResumeCard } from "@/resumes/components/resume-card/resume-card";
-import { RecentActivity } from "@/resumes/components/recent-activity";
-import { ResumeHeader } from "@/resumes/components/header";
-import { useResumes } from "@/resumes/useResumes";
+import { ResumeCard } from "@/features/resumes/components/resume-card/resume-card";
+import { RecentActivity } from "@/features/resumes/components/recent-activity";
+import { ResumeHeader } from "@/features/resumes/components/header";
+import { useResumes } from "@/features/resumes/use-resumes";
 import { useAuth } from "@/components/auth-provider";
 
 export default function MyResumesPage() {

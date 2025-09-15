@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import { UploadFlow } from "./upload-flow";
-import { Resume } from "@/resumes/types";
+import { Resume } from "@/features/resumes/types";
 import {
   Dialog,
   DialogContent,

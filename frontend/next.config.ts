@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
         hostname: "crackedonpaperwebp.sfo3.cdn.digitaloceanspaces.com",
         port: "",
         pathname: "/**",
-      },
+      }
     ],
   },
 };

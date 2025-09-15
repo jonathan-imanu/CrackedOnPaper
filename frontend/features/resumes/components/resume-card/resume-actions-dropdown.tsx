@@ -13,7 +13,7 @@ import {
   DownloadIcon,
   DeleteIcon,
 } from "@/components/animated-icons";
-import { RenameDialog } from "@/resumes/components/rename-dialog";
+import { RenameDialog } from "@/features/resumes/components/rename-dialog";
 
 interface ResumeActionsDropdownProps {
   resumeId: string;
