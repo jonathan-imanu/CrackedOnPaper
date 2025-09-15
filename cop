@@ -6,7 +6,7 @@ set -x
 dev() {
     docker compose --project-name "crackedonpaper" down
     
-    # Build and start services with dev profil e
+    # Build and start services with dev profile
     docker compose --project-name "crackedonpaper" build --parallel backend frontend
     docker compose --project-name "crackedonpaper" --profile development up -d
     
