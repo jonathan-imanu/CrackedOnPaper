@@ -42,6 +42,7 @@ create table if not exists app.matches (
   k_factor_used integer,
   delta_a integer,
   delta_b integer,
+  skipped boolean not null default false,
   state text not null default 'created' check (state in ('created', 'resolved', 'cancelled')),
 
   constraint matches_different_resumes check (resume_a_id != resume_b_id),
@@ -72,9 +73,9 @@ create table if not exists app.feedback (
   created_at timestamptz not null default now(),
 
   constraint feedback_text_not_empty check (length(trim(text)) > 0)
-  -- Note: feedback_target_in_match constraint removed due to PostgreSQL subquery limitation
-  -- This validation should be handled in application code
 );
+
+-- For Reference
 
 create index if not exists resumes_bucket_elo_ready_idx
   on app.resumes (industry, yoe_bucket, current_elo_int, id)
@@ -86,7 +87,7 @@ create index if not exists resumes_bucket_recent_idx
 
 create unique index if not exists matches_open_pair_unique
   on app.matches (least(resume_a_id, resume_b_id), greatest(resume_a_id, resume_b_id))
-  where state = 'created';
+  where state = 'created' and skipped = false;
 
 create index if not exists matches_state_created_idx
   on app.matches (state, created_at)
@@ -103,3 +104,7 @@ create index if not exists feedback_target_resume_idx
 
 create index if not exists feedback_tags_gin
   on app.feedback using gin (tags);
+
+create index if not exists matches_stale_created_idx 
+  on app.matches (created_at) 
+  where state = 'created';

@@ -2,12 +2,13 @@ package h2h
 
 import (
 	"time"
+
 	"github.com/google/uuid"
 )
 
 type CreateMatchRequest struct {
-	Industry  string `json:"industry" binding:"required,oneof=tech finance healthcare"`
-	YoeBucket string `json:"yoe_bucket" binding:"required,oneof=entry mid senior"`
+	Industry  string `json:"industry" binding:"required,oneof=tech finance marketing design sales"`
+	YoeBucket string `json:"yoe_bucket" binding:"required,oneof=intern entry mid senior"`
 }
 
 type ResolveMatchRequest struct {
@@ -15,8 +16,8 @@ type ResolveMatchRequest struct {
 }
 
 type LeaderboardRequest struct {
-	Industry  *string `form:"industry" binding:"omitempty,oneof=tech finance healthcare"`
-	YoeBucket *string `form:"yoe_bucket" binding:"omitempty,oneof=entry mid senior"`
+	Industry  *string `form:"industry" binding:"omitempty,oneof=tech finance marketing design sales"`
+	YoeBucket *string `form:"yoe_bucket" binding:"omitempty,oneof=intern entry mid senior"`
 	MinBattles int    `form:"min_battles" binding:"min=0"`
 	Limit      int    `form:"limit" binding:"omitempty,min=1,max=100"`
 	Offset     int    `form:"offset" binding:"min=0"`

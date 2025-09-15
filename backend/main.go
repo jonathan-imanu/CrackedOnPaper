@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap"
 
 	db "main/db/sqlc"
-	resume_handler "main/handlers/resume"
 	h2h_handler "main/handlers/h2h"
+	resume_handler "main/handlers/resume"
 	"main/handlers/storage"
 	"main/middleware"
 	"main/service/auth"
@@ -82,7 +82,7 @@ func main() {
 
 	authService := auth.NewAuthService(config.Supabase.JWTSecret, logger)
 	resumeService := resume.NewResumeService(db)
-	h2hService := h2h.NewH2HService(db)
+	h2hService := h2h.NewH2HService(db, logger)
 
 	storageHandler := storage.NewStorageHandler(resumeBucket, resumeService, authService, imageService, logger)
 	storageHandler.RegisterRoutes(api)

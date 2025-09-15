@@ -9,7 +9,6 @@ import (
 	"main/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
@@ -38,6 +37,7 @@ func (h *H2HHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	g.POST("/matches", h.CreateMatch)
 	g.POST("/matches/:match_id/resolve", h.authService.AuthMiddleware(), h.ResolveMatch)
 	g.GET("/leaderboard", h.GetLeaderboard)
+	g.POST("/matches/:match_id/skip", h.authService.AuthMiddleware(), h.SkipMatch)
 }
 
 func (h *H2HHandler) CreateMatch(c *gin.Context) {
@@ -161,24 +161,50 @@ func (h *H2HHandler) GetLeaderboard(c *gin.Context) {
     c.JSON(http.StatusOK, response)
 }
 
+func (h *H2HHandler) SkipMatch(c *gin.Context) {
+	matchID := c.Param("match_id")
+	if matchID == "" {
+		h.log.Error("Match ID is required")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Match ID is required"})
+		return
+	}
+
+	matchUUID, err := utils.ConvertStringToUUID(matchID)
+	if err != nil {
+		h.log.Error("Failed to convert match ID to UUID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid match ID"})
+		return
+	}
+
+	
+	err = h.h2hService.SkipMatch(c.Request.Context(), matchUUID)
+	if err != nil {
+		h.log.Error("Failed to skip match", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to skip match"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Match skipped successfully"})
+}
+
 // Helper functions
 func (h *H2HHandler) convertToMatchResponse(result *sqlc.GetMatchWithResumesRow) MatchResponse {
 	return MatchResponse{
-		MatchID:      h.convertPgUUIDToUUID(result.MatchID),
+		MatchID:      utils.ConvertPgUUIDToUUID(result.MatchID),
 		Industry:     result.Industry,
 		YoeBucket:    result.YoeBucket,
 		CreatedAt:    result.MatchCreatedAt.Time,
 		ResumeA: ResumeDetail{
-			ID:			 h.convertPgUUIDToUUID(result.ResumeAID),
+			ID:			 utils.ConvertPgUUIDToUUID(result.ResumeAID),
 			Name:		 result.ResumeAName,
-			ImageKeyPrefix: h.convertPgTextToString(result.ResumeAImagePrefix),
+			ImageKeyPrefix: utils.ConvertPgTextToString(result.ResumeAImagePrefix),
 			CurrentElo: int(result.ResumeAElo),
 			BattlesCount: int(result.ResumeABattles),
 		},
 		ResumeB: ResumeDetail{
-			ID:			 h.convertPgUUIDToUUID(result.ResumeBID),
+			ID:			 utils.ConvertPgUUIDToUUID(result.ResumeBID),
 			Name:		 result.ResumeBName,
-			ImageKeyPrefix: h.convertPgTextToString(result.ResumeBImagePrefix),
+			ImageKeyPrefix: utils.ConvertPgTextToString(result.ResumeBImagePrefix),
 			CurrentElo: int(result.ResumeBElo),
 			BattlesCount: int(result.ResumeBBattles),
 		},
@@ -187,9 +213,9 @@ func (h *H2HHandler) convertToMatchResponse(result *sqlc.GetMatchWithResumesRow)
 
 func (h *H2HHandler) convertToResolveMatchResponse(match *sqlc.AppMatch) ResolveMatchResponse {
     return ResolveMatchResponse{
-        MatchID:        h.convertPgUUIDToUUID(match.ID),
-        WinnerResumeID: h.convertPgUUIDToUUID(match.WinnerResumeID),
-        LoserResumeID:  h.convertPgUUIDToUUID(match.LoserResumeID),
+        MatchID:        utils.ConvertPgUUIDToUUID(match.ID),
+        WinnerResumeID: utils.ConvertPgUUIDToUUID(match.WinnerResumeID),
+        LoserResumeID:  utils.ConvertPgUUIDToUUID(match.LoserResumeID),
         DeltaA:         int(match.DeltaA.Int32),
         DeltaB:         int(match.DeltaB.Int32),
         KFactorUsed:    int(match.KFactorUsed.Int32),
@@ -201,9 +227,9 @@ func (h *H2HHandler) convertToLeaderboardResponse(resumes []sqlc.GetLeaderboardR
     leaderboardResumes := make([]LeaderboardResume, len(resumes))
     for i, resume := range resumes {
         leaderboardResumes[i] = LeaderboardResume{
-            ID:           h.convertPgUUIDToUUID(resume.ID),
+            ID:           utils.ConvertPgUUIDToUUID(resume.ID),
             Name:         resume.Name,
-            OwnerUserID:  h.convertPgUUIDToUUID(resume.OwnerUserID),
+            OwnerUserID:  utils.ConvertPgUUIDToUUID(resume.OwnerUserID),
             Industry:     resume.Industry,
             YoeBucket:    resume.YoeBucket,
             CurrentElo:   int(resume.CurrentEloInt),
@@ -220,18 +246,3 @@ func (h *H2HHandler) convertToLeaderboardResponse(resumes []sqlc.GetLeaderboardR
     }
 }
 
-
-// Type conversion helpers
-func (h *H2HHandler) convertPgUUIDToUUID(pgUUID pgtype.UUID) uuid.UUID {
-	if !pgUUID.Valid {
-		return uuid.Nil
-	}
-	return uuid.UUID(pgUUID.Bytes)
-}
-
-func (h *H2HHandler) convertPgTextToString(pgText pgtype.Text) string {
-	if !pgText.Valid {
-		return ""
-	}
-	return pgText.String
-}
