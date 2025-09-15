@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { Resume } from "@/resumes/types";
-import { Activity } from "@/resumes/components/recent-activity";
-import { resumeApi } from "@/resumes/api";
+import { Resume } from "@/features/resumes/types";
+import { Activity } from "@/features/resumes/components/recent-activity";
+import { resumeApi } from "@/features/resumes/api";
 import { useAuth } from "@/components/auth-provider";
 import { useToast } from "@/components/ui/toast-context";
 

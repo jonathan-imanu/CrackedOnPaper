@@ -33,6 +33,7 @@ type AppMatch struct {
 	KFactorUsed     pgtype.Int4
 	DeltaA          pgtype.Int4
 	DeltaB          pgtype.Int4
+	Skipped         bool
 	State           string
 }
 

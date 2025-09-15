@@ -21,14 +21,13 @@ import {
   ArrowLeft,
   RefreshCw,
 } from "lucide-react";
-import { Resume } from "@/resumes/types";
+import { Resume } from "@/features/resumes/types";
+import { industries, expierenceLevels } from "@/constants";
 
-// Import FilePond plugins
 import FilePondPluginFileValidateType from "filepond-plugin-file-validate-type";
 import FilePondPluginFileValidateSize from "filepond-plugin-file-validate-size";
 import FilePondPluginImagePreview from "filepond-plugin-image-preview";
 
-// Register plugins
 registerPlugin(
   FilePondPluginFileValidateType,
   FilePondPluginFileValidateSize,
@@ -50,8 +49,7 @@ interface UploadFlowProps {
 
 type UploadStep = "select" | "name" | "details" | "existing-check" | "complete";
 
-const industries = ["Tech", "Finance", "Marketing", "Design", "Sales"];
-const experienceLevels = ["Entry", "Mid-Level", "Senior", "Executive"];
+
 
 export function UploadFlow({
   existingResumes,
@@ -62,8 +60,8 @@ export function UploadFlow({
   const [currentStep, setCurrentStep] = useState<UploadStep>("select");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
-  const [selectedIndustry, setSelectedIndustry] = useState("");
-  const [selectedYoe, setSelectedYoe] = useState("");
+  const [selectedIndustry, setSelectedIndustry] = useState<{ key: string; value: string } | null>(null);
+  const [selectedYoe, setSelectedYoe] = useState<{ key: string; value: string } | null>(null);
   const [selectedExistingResume, setSelectedExistingResume] =
     useState<Resume | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -137,8 +135,8 @@ export function UploadFlow({
         selectedFile,
         fileName.trim(),
         version,
-        selectedIndustry,
-        selectedYoe
+        selectedIndustry.value,
+        selectedYoe.value
       );
       setCurrentStep("complete");
     } catch (err) {
@@ -155,8 +153,8 @@ export function UploadFlow({
     setCurrentStep("select");
     setSelectedFile(null);
     setFileName("");
-    setSelectedIndustry("");
-    setSelectedYoe("");
+    setSelectedIndustry(null);
+    setSelectedYoe(null);
     setSelectedExistingResume(null);
     setError(null);
   };
@@ -345,14 +343,17 @@ export function UploadFlow({
       <div className="space-y-4">
         <div>
           <Label htmlFor="industry">Industry</Label>
-          <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
+          <Select value={selectedIndustry?.key} onValueChange={(key) => {
+            const industry = industries.find(i => i.key === key);
+            setSelectedIndustry(industry ? { key: industry.key, value: industry.value } : null);
+          }}>
             <SelectTrigger className="mt-1">
               <SelectValue placeholder="Select your industry" />
             </SelectTrigger>
             <SelectContent>
               {industries.map((industry) => (
-                <SelectItem key={industry} value={industry}>
-                  {industry}
+                <SelectItem key={industry.key} value={industry.key}>
+                  {industry.key}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -361,14 +362,17 @@ export function UploadFlow({
 
         <div>
           <Label htmlFor="yoe">Experience Level</Label>
-          <Select value={selectedYoe} onValueChange={setSelectedYoe}>
+          <Select value={selectedYoe?.key} onValueChange={(key) => {
+            const level = expierenceLevels.find(l => l.key === key);
+            setSelectedYoe(level ? { key: level.key, value: level.value } : null);
+          }}>
             <SelectTrigger className="mt-1">
               <SelectValue placeholder="Select your experience level" />
             </SelectTrigger>
             <SelectContent>
-              {experienceLevels.map((level) => (
-                <SelectItem key={level} value={level}>
-                  {level}
+              {expierenceLevels.map((level) => (
+                <SelectItem key={level.key} value={level.key}>
+                  {level.key}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -382,9 +386,9 @@ export function UploadFlow({
               <p className="font-medium">{fileName}</p>
               <div className="flex items-center gap-2 mt-1">
                 {selectedIndustry && (
-                  <Badge variant="outline">{selectedIndustry}</Badge>
+                  <Badge variant="outline">{selectedIndustry.key}</Badge>
                 )}
-                {selectedYoe && <Badge variant="outline">{selectedYoe}</Badge>}
+                {selectedYoe && <Badge variant="outline">{selectedYoe.key}</Badge>}
               </div>
             </div>
           </div>
@@ -525,8 +529,12 @@ export function UploadFlow({
           )}
         </p>
         <div className="flex items-center justify-center gap-2 mt-4">
-          <Badge variant="outline">{selectedIndustry}</Badge>
-          <Badge variant="outline">{selectedYoe}</Badge>
+          {selectedIndustry && (
+            <Badge variant="outline" >{selectedIndustry.key}</Badge>
+          )}
+          {selectedYoe && (
+            <Badge variant="outline">{selectedYoe.key}</Badge>
+          )}
         </div>
       </div>
 

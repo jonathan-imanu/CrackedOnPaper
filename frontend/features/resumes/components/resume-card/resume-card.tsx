@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Resume } from "@/resumes/types";
+import { Resume } from "@/features/resumes/types";
 import {
   AnimatedButton,
   MessageSquareMoreIcon,
@@ -11,8 +11,9 @@ import {
 import { ResumeActionsDropdown } from "./resume-actions-dropdown";
 import { FileText, CheckCircle, Clock } from "lucide-react";
 import Image from "next/image";
-import { Lens } from "@/components/magicui/lens";
-import { ResumeViewerModal } from "@/resumes/components/resume-viewer-modal";
+import { Lens } from "@/components/ui/lens";
+import { ResumeViewerModal } from "@/features/resumes/components/resume-viewer/resume-viewer-modal";
+import { industries, expierenceLevels } from "@/constants";
 
 interface ResumeCardProps {
   resume: Resume;
@@ -59,38 +60,7 @@ export function ResumeCard({
       setIsViewerOpen(true);
     }
   };
-
-  const getStatusInfo = (inFlight: boolean) => {
-    if (inFlight) {
-      return {
-        icon: <Clock className="w-4 h-4" />,
-        text: "Processing",
-        color:
-          "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700",
-      };
-    }
-    return {
-      icon: <CheckCircle className="w-4 h-4" />,
-      text: "Active",
-      color:
-        "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 border-green-200 dark:border-yellow-700",
-    };
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Never";
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  const statusInfo = getStatusInfo(resume.InFlight);
+;
 
   return (
     <>
@@ -99,19 +69,17 @@ export function ResumeCard({
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <CardTitle className="text-lg mb-2">{resume.Name}</CardTitle>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2">
                 <Badge
                   variant="secondary"
-                  className={`${statusInfo.color} flex items-center gap-1`}
+                  className={`bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 border-green-200 dark:border-yellow-700 flex items-center gap-1`}
                 >
-                  {statusInfo.icon}
-                  {statusInfo.text}
+                  <CheckCircle className="w-4 h-4" />
+                    Active
                 </Badge>
-                <Badge variant="outlineSpecial">{resume.Industry}</Badge>
+                <Badge variant="outlineSpecial">{industries.find(i => i.value === resume.Industry)?.key}</Badge>
                 <Badge variant="outlineSpecial">
-                  {resume.YoeBucket}
-                  {!resume.YoeBucket.toLowerCase().includes("level") &&
-                    " Level"}
+                  {expierenceLevels.find(l => l.value === resume.YoeBucket)?.key}
                 </Badge>
               </div>
             </div>
@@ -145,15 +113,15 @@ export function ResumeCard({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-2 max-h-3xl">
           {resume.ImageReady && resume.ImageKeyPrefix ? (
-            <div className="aspect-[3/4] bg-muted rounded-lg flex items-center justify-center">
+            <div className="aspect-[3/4] rounded-lg flex items-center justify-center">
               <Lens zoomFactor={2.0} lensSize={300}>
                 <Image
-                  src={`${process.env.NEXT_PUBLIC_CDN_URL}${resume.ImageKeyPrefix}`}
+                  src={`${process.env.NEXT_PUBLIC_CDN_URL}/${resume.ImageKeyPrefix}`}
                   alt={resume.Name}
-                  width={1000}
-                  height={1000}
+                  width={1200}
+                  height={1200}
                   className="object-contain"
                 />
               </Lens>
@@ -171,13 +139,13 @@ export function ResumeCard({
           )}
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="text-center p-3 bg-muted/50 rounded-lg">
+            <div className="text-center p-3 rounded-lg">
               <div className="text-2xl font-bold text-primary">
                 {resume.CurrentEloInt}
               </div>
               <div className="text-muted-foreground">Elo Rating</div>
             </div>
-            <div className="text-center p-3 bg-muted/50 rounded-lg">
+            <div className="text-center p-3 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">
                 {resume.BattlesCount}
               </div>

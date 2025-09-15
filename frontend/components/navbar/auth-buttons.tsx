@@ -8,7 +8,6 @@ import ThemeSwitcher from "./theme-switcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,

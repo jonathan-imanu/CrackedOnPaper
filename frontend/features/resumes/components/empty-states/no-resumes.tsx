@@ -1,5 +1,5 @@
 import { FileText, Upload } from "lucide-react";
-import { UploadModal } from "@/resumes/components/upload/upload-modal";
+import { UploadModal } from "@/features/resumes/components/upload/upload-modal";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 
 interface NoResumesProps {

@@ -89,11 +89,11 @@ func (q *Queries) CreateFeedback(ctx context.Context, arg CreateFeedbackParams) 
 
 const createMatch = `-- name: CreateMatch :one
 insert into app.matches (
-  resume_a_id, resume_b_id, industry, yoe_bucket, state
+  resume_a_id, resume_b_id, industry, yoe_bucket, state, skipped
 ) values (
-  $1, $2, $3, $4, 'created'
+  $1, $2, $3, $4, 'created', false
 )
-returning id, resume_a_id, resume_b_id, industry, yoe_bucket, created_at, resolved_at, winner_resume_id, loser_resume_id, decided_by_user_id, k_factor_used, delta_a, delta_b, state
+returning id, resume_a_id, resume_b_id, industry, yoe_bucket, created_at, resolved_at, winner_resume_id, loser_resume_id, decided_by_user_id, k_factor_used, delta_a, delta_b, skipped, state
 `
 
 type CreateMatchParams struct {
@@ -126,6 +126,7 @@ func (q *Queries) CreateMatch(ctx context.Context, arg CreateMatchParams) (AppMa
 		&i.KFactorUsed,
 		&i.DeltaA,
 		&i.DeltaB,
+		&i.Skipped,
 		&i.State,
 	)
 	return i, err
@@ -722,7 +723,7 @@ set resolved_at = now(),
     k_factor_used = $7,
     state = 'resolved'
 where id = $1
-returning id, resume_a_id, resume_b_id, industry, yoe_bucket, created_at, resolved_at, winner_resume_id, loser_resume_id, decided_by_user_id, k_factor_used, delta_a, delta_b, state
+returning id, resume_a_id, resume_b_id, industry, yoe_bucket, created_at, resolved_at, winner_resume_id, loser_resume_id, decided_by_user_id, k_factor_used, delta_a, delta_b, skipped, state
 `
 
 type ResolveMatchParams struct {
@@ -761,6 +762,7 @@ func (q *Queries) ResolveMatch(ctx context.Context, arg ResolveMatchParams) (App
 		&i.KFactorUsed,
 		&i.DeltaA,
 		&i.DeltaB,
+		&i.Skipped,
 		&i.State,
 	)
 	return i, err
@@ -797,6 +799,18 @@ type SetResumesInFlightParams struct {
 // Mark resumes as in-flight
 func (q *Queries) SetResumesInFlight(ctx context.Context, arg SetResumesInFlightParams) error {
 	_, err := q.db.Exec(ctx, setResumesInFlight, arg.Column1, arg.InFlight)
+	return err
+}
+
+const skipMatch = `-- name: SkipMatch :exec
+update app.matches
+set skipped = true
+where id = $1
+`
+
+// Skip match
+func (q *Queries) SkipMatch(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, skipMatch, id)
 	return err
 }
 

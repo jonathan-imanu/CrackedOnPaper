@@ -6,16 +6,20 @@ import (
 	"math"
 
 	sqlc "main/db/sqlc"
+	"main/utils"
+
+	"go.uber.org/zap"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type H2HService struct {
 	db *sqlc.Queries
+	log *zap.Logger
 }
 
-func NewH2HService(db *sqlc.Queries) *H2HService {
-	return &H2HService{db: db}
+func NewH2HService(db *sqlc.Queries, log *zap.Logger) *H2HService {
+	return &H2HService{db: db, log: log}
 }
 
 func (s *H2HService) CreateMatch(ctx context.Context, industry, yoeBucket string) (*sqlc.GetMatchWithResumesRow, error) {
@@ -27,12 +31,12 @@ func (s *H2HService) CreateMatch(ctx context.Context, industry, yoeBucket string
 		return nil, fmt.Errorf("failed to find match pair: %w", err)
 	}
 
-	seedID, seedIDValid := convertToUUID(pair.SeedID)
-	seedElo, _ := convertToInt32(pair.SeedElo)
-	downID, downIDValid := convertToUUID(pair.DownID)
-	downElo, _ := convertToInt32(pair.DownElo)
-	upID, upIDValid := convertToUUID(pair.UpID)
-	upElo, _ := convertToInt32(pair.UpElo)
+	seedID, seedIDValid := utils.ConvertToUUID(pair.SeedID)
+	seedElo, _ := utils.ConvertToInt32(pair.SeedElo)
+	downID, downIDValid := utils.ConvertToUUID(pair.DownID)
+	downElo, _ := utils.ConvertToInt32(pair.DownElo)
+	upID, upIDValid := utils.ConvertToUUID(pair.UpID)
+	upElo, _ := utils.ConvertToInt32(pair.UpElo)
 
 	if !seedIDValid {
 		return nil, fmt.Errorf("no matches available for %s/%s", industry, yoeBucket)
@@ -69,7 +73,6 @@ func (s *H2HService) CreateMatch(ctx context.Context, industry, yoeBucket string
 		return nil, fmt.Errorf("failed to set resumes in-flight: %w", err)
 	}
 
-	// Create the match
 	match, err := s.db.CreateMatch(ctx, sqlc.CreateMatchParams{
 		ResumeAID: seedID,
 		ResumeBID: opponentID,
@@ -80,7 +83,6 @@ func (s *H2HService) CreateMatch(ctx context.Context, industry, yoeBucket string
 		return nil, fmt.Errorf("failed to create match: %w", err)
 	}
 
-	// Return match details with resume info (sqlc type)
 	result, err := s.db.GetMatchWithResumes(ctx, match.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get match with resumes: %w", err)
@@ -89,7 +91,6 @@ func (s *H2HService) CreateMatch(ctx context.Context, industry, yoeBucket string
 }
 
 func (s *H2HService) ResolveMatch(ctx context.Context, matchID pgtype.UUID, winnerID pgtype.UUID, decidedByUserID *pgtype.UUID) (*sqlc.AppMatch, error) {
-	// Get match details
 	matchDetails, err := s.db.GetMatchWithResumes(ctx, matchID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get match details: %w", err)
@@ -99,7 +100,6 @@ func (s *H2HService) ResolveMatch(ctx context.Context, matchID pgtype.UUID, winn
 		return nil, fmt.Errorf("match is already resolved or cancelled")
 	}
 
-	// Determine winner and loser
 	var loserID pgtype.UUID
 	if winnerID.Bytes == matchDetails.ResumeAID.Bytes {
 		loserID = matchDetails.ResumeBID
@@ -109,7 +109,6 @@ func (s *H2HService) ResolveMatch(ctx context.Context, matchID pgtype.UUID, winn
 		return nil, fmt.Errorf("winner must be one of the match participants")
 	}
 
-	// Get resumes for Elo calculation
 	resumeIDs := []pgtype.UUID{matchDetails.ResumeAID, matchDetails.ResumeBID}
 	resumes, err := s.db.GetResumesForEloUpdate(ctx, resumeIDs)
 	if err != nil {
@@ -120,7 +119,6 @@ func (s *H2HService) ResolveMatch(ctx context.Context, matchID pgtype.UUID, winn
 		return nil, fmt.Errorf("expected 2 resumes, got %d", len(resumes))
 	}
 
-	// Map resumes by ID for easy access
 	var resumeA, resumeB sqlc.GetResumesForEloUpdateRow
 	for _, resume := range resumes {
 		if resume.ID.Bytes == matchDetails.ResumeAID.Bytes {
@@ -160,13 +158,11 @@ func (s *H2HService) ResolveMatch(ctx context.Context, matchID pgtype.UUID, winn
 		return nil, fmt.Errorf("failed to update resume B: %w", err)
 	}
 
-	// Increment battles count for both resumes
 	err = s.db.IncrementBattlesForMatch(ctx, []pgtype.UUID{matchDetails.ResumeAID, matchDetails.ResumeBID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to increment battles count: %w", err)
 	}
 
-	// Resolve the match - use pgtype.Int4 for nullable integers
 	deltaAPgtype := pgtype.Int4{Int32: int32(deltaA), Valid: true}
 	deltaBPgtype := pgtype.Int4{Int32: int32(deltaB), Valid: true}
 	kFactorPgtype := pgtype.Int4{Int32: int32(kFactor), Valid: true}
@@ -194,7 +190,6 @@ func (s *H2HService) ResolveMatch(ctx context.Context, matchID pgtype.UUID, winn
 }
 
 func (s *H2HService) GetLeaderboard(ctx context.Context, industry *string, yoeBucket *string, battlesCount, limit, offset int32) ([]sqlc.GetLeaderboardRow, error) {
-	// Set defaults
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
@@ -222,6 +217,25 @@ func (s *H2HService) GetLeaderboard(ctx context.Context, industry *string, yoeBu
 	}
 
 	return resumes, nil
+}
+
+func (s *H2HService) SkipMatch(ctx context.Context, matchID pgtype.UUID) error {
+	matchDetails, err := s.db.GetMatchWithResumes(ctx, matchID)
+	if err != nil {
+		return fmt.Errorf("failed to get match details: %w", err)
+	}
+
+	err = s.db.ResetInFlightStatus(ctx, []pgtype.UUID{matchDetails.ResumeAID, matchDetails.ResumeBID})
+	if err != nil {
+		return fmt.Errorf("failed to reset in-flight status: %w", err)
+	}
+
+	err = s.db.SkipMatch(ctx, matchID)
+	if err != nil {
+		return fmt.Errorf("failed to skip match: %w", err)
+	}
+
+	return nil
 }
 
 // Helper functions
@@ -265,59 +279,3 @@ func calculateEloDeltas(ratingA, ratingB int, aWins bool, kFactor int) (int, int
 	return deltaA, deltaB
 }
 
-func convertToUUID(val interface{}) (pgtype.UUID, bool) {
-	if val == nil {
-		return pgtype.UUID{}, false
-	}
-
-	switch v := val.(type) {
-	case pgtype.UUID:
-		return v, v.Valid
-	case string:
-		uuid := pgtype.UUID{}
-		err := uuid.Scan(v)
-		return uuid, err == nil && uuid.Valid
-	case [16]uint8:
-		// Convert byte array directly to pgtype.UUID
-		uuid := pgtype.UUID{
-			Bytes: v,
-			Valid: true,
-		}
-		return uuid, true
-	case []uint8:
-		if len(v) == 16 {
-			// Convert byte slice to array and then to pgtype.UUID
-			var byteArray [16]uint8
-			copy(byteArray[:], v)
-			uuid := pgtype.UUID{
-				Bytes: byteArray,
-				Valid: true,
-			}
-			return uuid, true
-		}
-		return pgtype.UUID{}, false
-	default:
-		// Debug: log unexpected types
-		fmt.Printf("DEBUG: Unexpected UUID type: %T, value: %v\n", v, v)
-		return pgtype.UUID{}, false
-	}
-}
-
-func convertToInt32(val interface{}) (int32, bool) {
-	if val == nil {
-		return 0, false
-	}
-
-	switch v := val.(type) {
-	case int32:
-		return v, true
-	case int:
-		return int32(v), true
-	case int64:
-		return int32(v), true
-	case pgtype.Int4:
-		return v.Int32, v.Valid
-	default:
-		return 0, false
-	}
-}

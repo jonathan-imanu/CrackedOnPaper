@@ -144,9 +144,9 @@ where id = any($1::uuid[]);
 -- Create a new match
 -- name: CreateMatch :one
 insert into app.matches (
-  resume_a_id, resume_b_id, industry, yoe_bucket, state
+  resume_a_id, resume_b_id, industry, yoe_bucket, state, skipped
 ) values (
-  $1, $2, $3, $4, 'created'
+  $1, $2, $3, $4, 'created', false
 )
 returning *;
 
@@ -226,6 +226,12 @@ set state = 'cancelled'
 where state = 'created'
   and created_at < $1
 returning resume_a_id, resume_b_id;
+
+-- Skip match
+-- name: SkipMatch :exec
+update app.matches
+set skipped = true
+where id = $1;
 
 -- Reset in_flight status for cancelled matches
 -- name: ResetInFlightStatus :exec
