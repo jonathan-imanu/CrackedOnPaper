@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"time"
 
 	sqlc "main/db/sqlc"
 	"main/utils"
@@ -65,9 +66,12 @@ func (s *H2HService) CreateMatch(ctx context.Context, industry, yoeBucket string
 	}
 
 	// Mark both resumes as in-flight
+	timeoutTime := time.Now().Add(utils.IN_FLIGHT_TIMEOUT)
+	timeoutTimestamp := pgtype.Timestamptz{Time: timeoutTime, Valid: true}
+	
 	err = s.db.SetResumesInFlight(ctx, sqlc.SetResumesInFlightParams{
 		Column1:  []pgtype.UUID{seedID, opponentID},
-		InFlight: true,
+		InFlight: timeoutTimestamp,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to set resumes in-flight: %w", err)
@@ -223,6 +227,10 @@ func (s *H2HService) SkipMatch(ctx context.Context, matchID pgtype.UUID) error {
 	matchDetails, err := s.db.GetMatchWithResumes(ctx, matchID)
 	if err != nil {
 		return fmt.Errorf("failed to get match details: %w", err)
+	}
+
+	if matchDetails.State != "created" {
+		return fmt.Errorf("match is already resolved or cancelled")
 	}
 
 	err = s.db.ResetInFlightStatus(ctx, []pgtype.UUID{matchDetails.ResumeAID, matchDetails.ResumeBID})
