@@ -16,11 +16,12 @@ limit 1;
 insert into app.resumes (
   owner_user_id, slot, name, industry, yoe_bucket,
   pdf_storage_key, pdf_size_bytes, pdf_mime,
-  image_key_prefix, page_count, image_ready
+  image_key_prefix, page_count, image_ready, in_flight
 ) values (
   $1, $2, $3, $4, $5,
   $6, $7, coalesce($8, 'application/pdf'),
-  $9, coalesce($10, 1), coalesce($11, false)
+  $9, coalesce($10, 1), coalesce($11, false),
+  '1970-01-01 00:00:00+00'::timestamptz
 )
 returning *;
 

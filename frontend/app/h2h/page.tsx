@@ -30,6 +30,7 @@ export default function H2HPage() {
 
   const hasLoadedRef = useRef(false);
   const currentFiltersRef = useRef(`${selectedIndustry}-${selectedLevel}`);
+  const latestMatchIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const currentFilters = `${selectedIndustry}-${selectedLevel}`;
@@ -40,6 +41,20 @@ export default function H2HPage() {
       loadNewMatch();
     }
   }, [selectedIndustry, selectedLevel, loadNewMatch]);
+
+  useEffect(() => {
+    if (currentMatch?.match_id) {
+      latestMatchIdRef.current = currentMatch.match_id;
+    }
+  }, [currentMatch]);
+  
+  useEffect(() => {
+    return () => {
+      if (latestMatchIdRef.current) {
+        navigator.sendBeacon(`${process.env.NEXT_PUBLIC_BACKEND_URL}/h2h/matches/${latestMatchIdRef.current}/skip`);
+      } 
+    };
+  }, []);
 
   const handleFeedback = (resumeId: string) => {
     console.log("Opening feedback for resume:", resumeId);

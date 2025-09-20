@@ -65,7 +65,6 @@ func (h *StorageHandler) UploadResume(c *gin.Context) {
 		return
 	}
 
-	// Verify that the user has a free slot to upload a resume.
 	_, err := h.ResumeService.FindFreeSlotForOwner(c.Request.Context(), userID)
 	if err != nil {
 		h.log.Error("Failed to find free slot", zap.Error(err))
