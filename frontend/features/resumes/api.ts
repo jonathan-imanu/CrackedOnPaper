@@ -19,7 +19,7 @@ interface RenameResumeResponse {
   current_elo_int: number;
   battles_count: number;
   last_matched_at: string | null;
-  in_flight: boolean;
+  in_flight: string;
   created_at: string;
   pdf_storage_key: string | null;
   pdf_size_bytes: number;

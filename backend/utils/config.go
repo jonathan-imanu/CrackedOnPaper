@@ -3,7 +3,10 @@ package utils
 import (
 	"fmt"
 	"os"
+	"time"
 )
+
+const IN_FLIGHT_TIMEOUT = 5 * time.Minute
 
 type BucketConfig struct {
 	BucketEndpoint string

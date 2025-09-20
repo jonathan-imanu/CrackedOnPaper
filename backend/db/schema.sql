@@ -15,7 +15,7 @@ create table if not exists app.resumes (
   current_elo_int integer not null default 1000,
   battles_count integer not null default 0,
   last_matched_at timestamptz,
-  in_flight boolean not null default false,
+  in_flight timestamptz not null,
   created_at timestamptz not null default now(),
   pdf_storage_key text,
   pdf_size_bytes bigint,
@@ -78,16 +78,14 @@ create table if not exists app.feedback (
 -- For Reference
 
 create index if not exists resumes_bucket_elo_ready_idx
-  on app.resumes (industry, yoe_bucket, current_elo_int, id)
-  where in_flight = false;
+  on app.resumes (industry, yoe_bucket, current_elo_int, id);
 
 create index if not exists resumes_bucket_recent_idx
-  on app.resumes (industry, yoe_bucket, last_matched_at desc nulls last)
-  where in_flight = false;
+  on app.resumes (industry, yoe_bucket, last_matched_at desc nulls last);
 
-create unique index if not exists matches_open_pair_unique
-  on app.matches (least(resume_a_id, resume_b_id), greatest(resume_a_id, resume_b_id))
-  where state = 'created' and skipped = false;
+-- Removed matches_open_pair_unique constraint
+-- Race conditions are prevented by FOR UPDATE SKIP LOCKED in FindMatchPair query
+-- Timeout logic handles stale matches automatically
 
 create index if not exists matches_state_created_idx
   on app.matches (state, created_at)

@@ -3,6 +3,7 @@ package resume
 import (
 	"context"
 	"fmt"
+	"time"
 
 	sqlc "main/db/sqlc"
 	"main/service/image"
@@ -161,7 +162,7 @@ func (s *ResumeService) buildResume(ctx context.Context, ownerUserID string, nam
 		Slot:          slot,
 		CurrentEloInt: 1000,	
 		BattlesCount:  0,
-		InFlight:      false,
+		InFlight:      pgtype.Timestamptz{Time: time.Unix(0, 0), Valid: true},
 	}
 
 	return resume, nil

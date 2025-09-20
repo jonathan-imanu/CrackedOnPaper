@@ -92,17 +92,31 @@ order by slot;
 
 -- --------------------- START OF MATCHMAKING RELATED QUERIES ----------------------------
 
--- Advanced pairing algorithm from ProjectContext.md 
+-- Advanced ELO pairing algorithm  
 -- name: FindMatchPair :one
 with available_count as (
   select count(*) as cnt
   from app.resumes r
-  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
+  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight < now() and r.image_ready = true
+    and r.id not in (
+      select distinct resume_a_id from app.matches 
+      where state = 'created' and skipped = false and created_at > now() - interval '5 minutes'
+      union
+      select distinct resume_b_id from app.matches 
+      where state = 'created' and skipped = false and created_at > now() - interval '5 minutes'
+    )
 ),
 seed as (
   select r.id, r.current_elo_int
   from app.resumes r
-  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
+  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight < now() and r.image_ready = true
+    and r.id not in (
+      select distinct resume_a_id from app.matches 
+      where state = 'created' and skipped = false and created_at > now() - interval '5 minutes'
+      union
+      select distinct resume_b_id from app.matches 
+      where state = 'created' and skipped = false and created_at > now() - interval '5 minutes'
+    )
   order by coalesce(r.last_matched_at, '-infinity'::timestamptz) asc
   limit 1
   for update skip locked
@@ -110,9 +124,16 @@ seed as (
 down as (
   select r.id, r.current_elo_int
   from app.resumes r
-  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
+  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight < now() and r.image_ready = true
     and r.id != (select id from seed)
     and r.current_elo_int <= (select current_elo_int from seed)
+    and r.id not in (
+      select distinct resume_a_id from app.matches 
+      where state = 'created' and skipped = false and created_at > now() - interval '5 minutes'
+      union
+      select distinct resume_b_id from app.matches 
+      where state = 'created' and skipped = false and created_at > now() - interval '5 minutes'
+    )
   order by r.current_elo_int desc, r.id
   limit 1
   for update skip locked
@@ -120,9 +141,16 @@ down as (
 up as (
   select r.id, r.current_elo_int
   from app.resumes r
-  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight = false and r.image_ready = true
+  where r.industry = $1 and r.yoe_bucket = $2 and r.in_flight < now() and r.image_ready = true
     and r.id != (select id from seed)
     and r.current_elo_int > (select current_elo_int from seed)
+    and r.id not in (
+      select distinct resume_a_id from app.matches 
+      where state = 'created' and skipped = false and created_at > now() - interval '5 minutes'
+      union
+      select distinct resume_b_id from app.matches 
+      where state = 'created' and skipped = false and created_at > now() - interval '5 minutes'
+    )
   order by r.current_elo_int asc, r.id
   limit 1
   for update skip locked
@@ -192,7 +220,7 @@ returning *;
 update app.resumes
 set current_elo_int = $2,
     last_matched_at = now(),
-    in_flight = false
+    in_flight = '1970-01-01 00:00:00+00'::timestamptz
 where id = $1;
 
 -- Increment battles count for both resumes in a match
@@ -236,7 +264,7 @@ where id = $1;
 -- Reset in_flight status for cancelled matches
 -- name: ResetInFlightStatus :exec
 update app.resumes
-set in_flight = false
+set in_flight = '1970-01-01 00:00:00+00'::timestamptz
 where id = any($1::uuid[]);
 
 -- Add feedback
