@@ -46,7 +46,7 @@ type AppResume struct {
 	CurrentEloInt  int32
 	BattlesCount   int32
 	LastMatchedAt  pgtype.Timestamptz
-	InFlight       bool
+	InFlight       pgtype.Timestamptz
 	CreatedAt      pgtype.Timestamptz
 	PdfStorageKey  pgtype.Text
 	PdfSizeBytes   pgtype.Int8
