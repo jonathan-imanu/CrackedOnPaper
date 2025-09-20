@@ -4,15 +4,17 @@ import { useState, useRef } from "react";
 import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
-import { TrendingUpDownIcon } from "@/components/animated-icons/trending-up-down";
 import { UsersIcon } from "@/components/animated-icons/users";
+import { MessageSquareMoreIcon } from "@/components/animated-icons/message-square-more";
 import { FileTextIcon } from "@/components/animated-icons/file-text";
 import AuthButtons from "./auth-buttons";
 
 const navigationItems = [
-  { name: "Leaderboards", link: "/leaderboards", icon: TrendingUpDownIcon },
+  // TODO: Get more users so we can add this back in
+  // { name: "Leaderboards", link: "/leaderboards", icon: TrendingUpDownIcon },
   { name: "H2H", link: "/h2h", icon: UsersIcon },
   { name: "My Resumes", link: "/my-resumes", icon: FileTextIcon },
+  { name: "Reviews", link: "/reviews", icon: MessageSquareMoreIcon },
 ];
 
 export function Navbar() {

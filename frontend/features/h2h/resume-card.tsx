@@ -41,19 +41,21 @@ export function ResumeCard({ resume, onClick, isSelected, onFeedback }: ResumeCa
       onMouseEnter={handleCardMouseEnter}
       onMouseLeave={handleCardMouseLeave}
     >
-      <AnimatedButton
-        variant="accent"
-        size="sm"
-        className="absolute top-3 right-3 z-10 bg-background/90 backdrop-blur-sm"
-        icon={MessageSquareMoreIcon}
-        iconOnly
-        onClick={(e) => {
-          e.stopPropagation();
-          onFeedback?.();
-        }}
-      >
-        Give Feedback
-      </AnimatedButton>
+      <div className="absolute top-3 right-3 z-10 flex gap-2">
+        <AnimatedButton
+          variant="accent"
+          size="sm"
+          className="bg-background/90 backdrop-blur-sm"
+          icon={MessageSquareMoreIcon}
+          iconOnly
+          onClick={(e) => {
+            e.stopPropagation();
+            onFeedback?.();
+          }}
+        >
+          Give Feedback
+        </AnimatedButton>
+      </div>
 
       <CardHeader className="pb-0">
         <div className="flex items-start justify-between mb-0">
