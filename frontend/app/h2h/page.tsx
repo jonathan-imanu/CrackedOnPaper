@@ -6,6 +6,7 @@ import React, { useEffect, useRef } from "react";
 import { ErrorStates } from "@/features/h2h/states/error";
 import { Loading } from "@/features/h2h/states/loading";
 import { Match } from "@/features/h2h/match";
+import axiosInstance from "@/lib/axiosInstance";
 
 
 export default function H2HPage() {
@@ -25,11 +26,12 @@ export default function H2HPage() {
     setSelectedLevel,
     handleVote,
     handleSkip,
-    loadNewMatch
+    loadNewMatch,
   } = useH2H();
 
   const hasLoadedRef = useRef(false);
   const currentFiltersRef = useRef(`${selectedIndustry}-${selectedLevel}`);
+  const latestMatchIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const currentFilters = `${selectedIndustry}-${selectedLevel}`;
@@ -40,6 +42,20 @@ export default function H2HPage() {
       loadNewMatch();
     }
   }, [selectedIndustry, selectedLevel, loadNewMatch]);
+
+  useEffect(() => {
+    if (currentMatch?.match_id) {
+      latestMatchIdRef.current = currentMatch.match_id;
+    }
+  }, [currentMatch]);
+  
+  useEffect(() => {
+    return () => {
+      if (latestMatchIdRef.current) {
+        navigator.sendBeacon(`${process.env.NEXT_PUBLIC_BACKEND_URL}/h2h/matches/${latestMatchIdRef.current}/skip`);
+      } 
+    };
+  }, []);
 
   const handleFeedback = (resumeId: string) => {
     console.log("Opening feedback for resume:", resumeId);

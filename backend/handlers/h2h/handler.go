@@ -35,9 +35,9 @@ func NewH2HHandler(db *sqlc.Queries, h2hService *h2h.H2HService, log *zap.Logger
 func (h *H2HHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	g := rg.Group("/h2h")
 	g.POST("/matches", h.CreateMatch)
-	g.POST("/matches/:match_id/resolve", h.authService.AuthMiddleware(), h.ResolveMatch)
+	g.POST("/matches/:match_id/resolve", h.ResolveMatch)
 	g.GET("/leaderboard", h.GetLeaderboard)
-	g.POST("/matches/:match_id/skip", h.authService.AuthMiddleware(), h.SkipMatch)
+	g.POST("/matches/:match_id/skip", h.SkipMatch)
 }
 
 func (h *H2HHandler) CreateMatch(c *gin.Context) {
@@ -92,13 +92,10 @@ func (h *H2HHandler) ResolveMatch(c *gin.Context) {
     }
 
     userID, ok := h.authService.GetUserID(c)
-    if !ok {
-        h.log.Error("Failed to get user ID")
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user ID"})
-        return
-    }
+	if !ok {
+		userID = pgtype.UUID{}
+	}
 
-	// Convert winner resume ID to pgtype.UUID
 	winnerPgUUID := pgtype.UUID{}
     if err := winnerPgUUID.Scan(req.WinnerResumeID.String()); err != nil {
         h.log.Error("Failed to convert winner resume ID", zap.Error(err))
@@ -135,7 +132,6 @@ func (h *H2HHandler) GetLeaderboard(c *gin.Context) {
         return
     }
 
-    // Set defaults if not provided
     if req.Limit <= 0 {
         req.Limit = 50
     }
@@ -176,7 +172,6 @@ func (h *H2HHandler) SkipMatch(c *gin.Context) {
 		return
 	}
 
-	
 	err = h.h2hService.SkipMatch(c.Request.Context(), matchUUID)
 	if err != nil {
 		h.log.Error("Failed to skip match", zap.Error(err))
