@@ -7,7 +7,7 @@ export interface Resume {
   CurrentEloInt: number;
   BattlesCount: number;
   LastMatchedAt: string | null;
-  InFlight: boolean;
+  InFlight: string;
   CreatedAt: string;
   PdfStorageKey: string;
   PdfSizeBytes: number;
